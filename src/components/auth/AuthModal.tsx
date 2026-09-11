@@ -26,7 +26,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!email || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
       setErrorMsg('Por favor completá todos los campos.');
       return;
     }
@@ -37,7 +38,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
 
     if (mode === 'signin') {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(cleanEmail, password);
       if (error) {
         setErrorMsg(error.message || STRINGS.AUTH_ERROR_GENERIC);
       } else {
@@ -45,9 +46,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         onClose();
       }
     } else {
-      const { error } = await signUp(email, password);
+      const { error } = await signUp(cleanEmail, password);
       if (error) {
-        setErrorMsg(error.message || STRINGS.AUTH_ERROR_GENERIC);
+        if (error.message && error.message.includes('ya está registrado')) {
+          setMode('signin');
+          setErrorMsg('Esta cuenta ya existe. Por favor ingresá tu contraseña para iniciar sesión.');
+        } else {
+          setErrorMsg(error.message || STRINGS.AUTH_ERROR_GENERIC);
+        }
       } else {
         showToast(STRINGS.AUTH_SUCCESS_LOGIN, 'success');
         onClose();
@@ -134,6 +140,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="ejemplo@correo.com"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
               />
             </div>

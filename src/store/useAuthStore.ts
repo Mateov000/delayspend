@@ -13,6 +13,26 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
+function translateAuthError(msg: string): string {
+  const lower = msg.toLowerCase();
+  if (lower.includes('invalid login credentials')) {
+    return 'Correo o contraseña incorrectos.';
+  }
+  if (lower.includes('user already registered')) {
+    return 'Este correo ya está registrado. Podés iniciar sesión directamente.';
+  }
+  if (lower.includes('invalid') && lower.includes('email')) {
+    return 'El formato del correo electrónico no es válido.';
+  }
+  if (lower.includes('rate limit') || lower.includes('over_email_send_rate_limit')) {
+    return 'Límite de solicitudes alcanzado. Por favor esperá unos minutos.';
+  }
+  if (lower.includes('password should be at least')) {
+    return 'La contraseña debe tener al menos 6 caracteres.';
+  }
+  return msg;
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   session: null,
@@ -49,16 +69,35 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signUp: async (email: string, password: string) => {
+    const cleanEmail = email.trim().toLowerCase();
     set({ isLoading: true });
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: cleanEmail,
         password,
       });
+
       if (error) {
         set({ isLoading: false });
-        return { error };
+        return { error: new Error(translateAuthError(error.message)) };
       }
+
+      // Si el usuario se creó pero aún no hay sesión directa, logueamos de inmediato
+      if (!data.session && data.user) {
+        const loginRes = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+        if (loginRes.data.session) {
+          set({
+            session: loginRes.data.session,
+            user: loginRes.data.user,
+            isLoading: false,
+          });
+          return { error: null };
+        }
+      }
+
       set({
         session: data.session,
         user: data.user,
@@ -67,21 +106,25 @@ export const useAuthStore = create<AuthState>((set) => ({
       return { error: null };
     } catch (err) {
       set({ isLoading: false });
-      return { error: err as Error };
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      return { error: new Error(translateAuthError(rawMsg)) };
     }
   },
 
   signIn: async (email: string, password: string) => {
+    const cleanEmail = email.trim().toLowerCase();
     set({ isLoading: true });
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: cleanEmail,
         password,
       });
+
       if (error) {
         set({ isLoading: false });
-        return { error };
+        return { error: new Error(translateAuthError(error.message)) };
       }
+
       set({
         session: data.session,
         user: data.user,
@@ -90,7 +133,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       return { error: null };
     } catch (err) {
       set({ isLoading: false });
-      return { error: err as Error };
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      return { error: new Error(translateAuthError(rawMsg)) };
     }
   },
 
@@ -100,4 +144,3 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user: null, session: null, isLoading: false });
   },
 }));
-
