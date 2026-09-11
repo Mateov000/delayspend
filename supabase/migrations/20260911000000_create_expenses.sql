@@ -39,3 +39,4 @@ create policy "Users can delete their own expenses"
 
 -- Habilitar Supabase Realtime
 alter publication supabase_realtime add table public.expenses;
+

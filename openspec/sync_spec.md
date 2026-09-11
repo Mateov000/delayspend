@@ -133,3 +133,4 @@ alter publication supabase_realtime add table public.expenses;
 | `AUTH_BUTTON_LOGOUT` | Cerrar sesión en este dispositivo | Configuración |
 | `AUTH_SUCCESS_LOGIN` | ¡Sesión iniciada! Tus gastos se están sincronizando. | Toast |
 | `AUTH_SUCCESS_LOGOUT` | Cerraste sesión correctamente. | Toast |
+
