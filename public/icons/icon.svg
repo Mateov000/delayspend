@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  <path d="M256 80 L384 144 V264 C384 352 256 424 256 424 C256 424 128 352 128 264 V144 Z" fill="url(#shieldGrad)" opacity="0.95"/>
+  <!-- Piggy / Coin Symbol -->
+  <circle cx="256" cy="240" r="64" fill="#ffffff"/>
+  <path d="M256 208 V272 M232 232 H280 M240 216 C240 216 264 216 264 232 C264 248 240 248 240 264 C240 264 272 264 272 264" stroke="#0f172a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
+

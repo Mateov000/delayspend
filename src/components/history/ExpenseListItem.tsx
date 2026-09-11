@@ -1,0 +1,165 @@
+import { useState } from 'react';
+import { Expense } from '../../store/types';
+import { getCategoryById } from '../../constants/categories';
+import { STRINGS } from '../../constants/strings';
+import { formatCurrency } from '../../utils/format';
+import { CategoryIcon } from '../ui/CategoryIcon';
+import { Badge } from '../ui/Badge';
+import { MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw } from 'lucide-react';
+
+interface ExpenseListItemProps {
+  expense: Expense;
+  onEdit: (expense: Expense) => void;
+  onDelete: (id: string) => void;
+  onToggleTransfer: (id: string) => void;
+}
+
+export function ExpenseListItem({
+  expense,
+  onEdit,
+  onDelete,
+  onToggleTransfer,
+}: ExpenseListItemProps) {
+  const [showMenu, setShowMenu] = useState(false);
+  const category = getCategoryById(expense.categoryId);
+  const isReal = expense.type === 'real';
+  const isTransferred = Boolean(expense.transferredAt);
+
+  return (
+    <div className="relative flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition-colors">
+      {/* Left: Category Icon & Details */}
+      <div className="flex items-center gap-3 min-w-0 pr-2">
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${category.badgeBg} ${category.textColor}`}
+        >
+          <CategoryIcon name={category.icon} className="w-5 h-5" />
+        </div>
+
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-semibold text-slate-800 truncate leading-tight">
+            {expense.description}
+          </span>
+
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <span className="text-[11px] font-medium text-slate-400">
+              {category.name}
+            </span>
+
+            <span className="text-slate-300">•</span>
+
+            <Badge variant={isReal ? 'real' : 'delayed'} size="sm">
+              {isReal ? STRINGS.HISTORY_BADGE_REAL : STRINGS.HISTORY_BADGE_DELAYED}
+            </Badge>
+
+            {!isReal && (
+              <button
+                type="button"
+                onClick={() => onToggleTransfer(expense.id)}
+                className="cursor-pointer"
+                title={
+                  isTransferred
+                    ? STRINGS.HISTORY_ACTION_UNMARK_TRANSFERRED
+                    : STRINGS.HISTORY_ACTION_MARK_TRANSFERRED
+                }
+              >
+                <Badge
+                  variant={isTransferred ? 'transferred' : 'neutral'}
+                  size="sm"
+                  className="hover:opacity-80 transition-opacity"
+                >
+                  {isTransferred ? (
+                    <>
+                      <CheckCircle className="w-3 h-3 text-teal-600" />
+                      <span>Transferido</span>
+                    </>
+                  ) : (
+                    <span>⏳ Pendiente</span>
+                  )}
+                </Badge>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right: Amount & Action Menu Trigger */}
+      <div className="flex items-center gap-2 shrink-0">
+        <span
+          className={`text-sm font-bold tracking-tight ${
+            isReal ? 'text-slate-900' : 'text-emerald-600'
+          }`}
+        >
+          {isReal ? '-' : '+'} {formatCurrency(expense.amount)}
+        </span>
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowMenu(!showMenu)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            aria-label="Acciones de gasto"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+
+          {showMenu && (
+            <>
+              {/* Backdrop for closing menu */}
+              <div
+                className="fixed inset-0 z-20"
+                onClick={() => setShowMenu(false)}
+              />
+
+              <div className="absolute right-0 top-8 z-30 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    onEdit(expense);
+                  }}
+                  className="w-full flex items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{STRINGS.HISTORY_ACTION_EDIT}</span>
+                </button>
+
+                {!isReal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onToggleTransfer(expense.id);
+                    }}
+                    className="w-full flex items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                    <span>
+                      {isTransferred
+                        ? STRINGS.HISTORY_ACTION_UNMARK_TRANSFERRED
+                        : STRINGS.HISTORY_ACTION_MARK_TRANSFERRED}
+                    </span>
+                  </button>
+                )}
+
+                <div className="h-px bg-slate-100 my-1" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    onDelete(expense.id);
+                  }}
+                  className="w-full flex items-center gap-2 px-3.5 py-2 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                  <span>{STRINGS.HISTORY_ACTION_DELETE}</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
