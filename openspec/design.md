@@ -1,16 +1,20 @@
 # DelaySpend — Diseño Técnico y Especificación de Dominio
 
 **Documento:** `openspec/design.md`  
-**Versión:** 1.0.0 · **Estado:** Aprobado para construcción  
+**Versión:** 1.1.0 · **Estado:** Implementado en Producción  
 **Metodología:** OpenSpec / ChangeSpec  
 
 ---
 
-## 1. 📐 Modelo de Datos y Contrato del Store (Zustand)
+## 1. 📐 Modelo de Datos, Esquema Dual y Contratos de Store
 
-Todo el estado financiero se gestiona mediante un único store de Zustand (`useExpenseStore`), tipado de forma estricta y persistido automáticamente en `localStorage` con la clave `delayspend_storage_v1`.
+El sistema opera bajo un paradigma **Local-First con Sincronización en la Nube**. La capa de almacenamiento está dividida en dos niveles:
+1. **Capa Local (Caché y Buffer Offline de 0ms)**: Gestionada por Zustand con el middleware `persist` en `localStorage` (clave `delayspend_storage_v1`). Garantiza latencia cero y total disponibilidad offline.
+2. **Capa Cloud (Fuente de Verdad Persistente)**: Base de datos relacional PostgreSQL en Supabase (`sa-east-1`, São Paulo), protegida con Row Level Security (RLS) y sincronizada en tiempo real mediante WebSockets.
 
-### 1.1 Tipos de Dominio (`src/store/types.ts`)
+---
+
+### 1.1 Tipos de Dominio TypeScript (`src/store/types.ts`)
 
 ```typescript
 export type ExpenseType = 'real' | 'delayed';
@@ -37,15 +41,15 @@ export interface Category {
 }
 
 export interface Expense {
-  id: string; // UUID v4 o nanoid (alfanumérico único)
+  id: string; // UUID v4 (coincidente con PostgreSQL UUID)
   type: ExpenseType; // 'real': plata gastada | 'delayed': compra postergada
   amount: number; // Monto mayor a 0, redondeado a 2 decimales
   description: string; // Concepto o justificación de la compra
   categoryId: CategoryId; // Categoría normalizada
   date: string; // Formato ISO 'YYYY-MM-DD'
   transferredAt: string | null; // ISO 8601 de la transferencia (null si no aplica o pendiente)
-  createdAt: string; // ISO 8601 de creación en el dispositivo
-  updatedAt: string; // ISO 8601 de última edición
+  createdAt: string; // ISO 8601 de creación
+  updatedAt: string; // ISO 8601 de última edición (clave para LWW)
 }
 
 export type PeriodFilterType = 'current_month' | 'previous_month' | 'all';
@@ -66,7 +70,44 @@ export interface FinancialMetrics {
 }
 ```
 
-### 1.2 Interfaz del Store Financiero (`src/store/useExpenseStore.ts`)
+---
+
+### 1.2 Esquema Relacional PostgreSQL en Supabase (`public.expenses`)
+
+```sql
+create table if not exists public.expenses (
+  id uuid primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  type text not null check (type in ('real', 'delayed')),
+  amount numeric(12, 2) not null check (amount > 0),
+  description text not null,
+  category_id text not null,
+  date date not null,
+  transferred_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz -- Soft delete para propagar borrados a otros dispositivos
+);
+
+-- Índices de alto rendimiento
+create index if not exists idx_expenses_user_date on public.expenses(user_id, date desc);
+create index if not exists idx_expenses_user_updated on public.expenses(user_id, updated_at desc);
+
+-- Políticas RLS
+alter table public.expenses enable row level security;
+
+create policy "Users can view their own expenses" on public.expenses for select using (auth.uid() = user_id);
+create policy "Users can insert their own expenses" on public.expenses for insert with check (auth.uid() = user_id);
+create policy "Users can update their own expenses" on public.expenses for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their own expenses" on public.expenses for delete using (auth.uid() = user_id);
+
+-- Replicación en tiempo real
+alter publication supabase_realtime add table public.expenses;
+```
+
+---
+
+### 1.3 Contrato del Store Financiero (`src/store/useExpenseStore.ts`)
 
 ```typescript
 export interface ExpenseInput {
@@ -89,28 +130,66 @@ export interface ExpenseState {
   markAllPendingAsTransferred: () => void;
   toggleTransferred: (id: string) => void;
   
-  // Mantenimiento
+  // Mantenimiento y Migración
   resetAllData: () => void;
   importExpenses: (expenses: Expense[]) => void;
 }
+
+// Hook desacoplado de sincronización reactiva
+type SyncListener = (action: 'push' | 'delete', item: Expense | string) => void;
+export function registerSyncListener(listener: SyncListener): void;
 ```
 
-### 1.3 Reglas de Negocio del Store
+---
 
-1. **Inmutabilidad estricta**: Ninguna acción muta el array `expenses` in-place; siempre se retornan nuevas copias vía spread o `filter`/`map`.
-2. **Validación de Monto**: `amount` debe ser un número finito estrictamente mayor a `0`.
-3. **Mecánica de `transferredAt`**:
-   - Para gastos reales (`type === 'real'`), `transferredAt` siempre debe ser `null`.
-   - Para compras delayeadas (`type === 'delayed'`), nace con `transferredAt: null`.
-   - Al ejecutar `markAllPendingAsTransferred()`, todos los gastos con `type === 'delayed' && transferredAt === null` actualizan su `transferredAt` con el timestamp `new Date().toISOString()`.
-   - `toggleTransferred(id)` permite conmutar el estado si el usuario se equivocó o transfirió manualmente solo ese ítem.
-4. **Persistencia y Sanitización**: El middleware `persist` de Zustand serializa el array `expenses`. Al rehidratar, si alguna fecha o campo numérico viene corrupto, se descarta o repara sin romper la app.
+### 1.4 Contrato del Store de Autenticación (`src/store/useAuthStore.ts`)
+
+```typescript
+export interface AuthState {
+  user: User | null;
+  session: Session | null;
+  isLoading: boolean;
+  isInitialized: boolean;
+  initialize: () => () => void;
+  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signOut: () => Promise<void>;
+}
+```
+
+---
+
+### 1.5 Contrato del Store de Sincronización (`src/store/useSyncStore.ts`)
+
+```typescript
+export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'guest';
+
+export interface SyncState {
+  status: SyncStatus;
+  lastSyncedAt: string | null;
+  setStatus: (status: SyncStatus) => void;
+  initializeSync: (userId: string | null) => () => void;
+  pushExpense: (expense: Expense, userId: string) => Promise<void>;
+  deleteRemoteExpense: (id: string, userId: string) => Promise<void>;
+  syncAllWithCloud: (userId: string) => Promise<void>;
+}
+```
+
+---
+
+### 1.6 Reglas de Negocio, Concurrencia y Sincronización
+
+1. **Inmutabilidad y 0ms Local-First**: Las mutaciones actualizan de inmediato el estado de Zustand y se persisten en `localStorage`. Nunca se espera una respuesta de red para actualizar la UI.
+2. **Push Asíncrono Desacoplado**: Al ocurrir una mutación local, el store dispara un evento mediante `syncListener`. Si el usuario tiene sesión activa y conexión, `useSyncStore` realiza un `upsert` en Supabase en segundo plano.
+3. **Resolución de Conflictos Last-Write-Wins (LWW)**: Tanto en el merge inicial como en eventos en tiempo real, si existen dos versiones de un mismo registro (`id`), prevalece aquella con el timestamp `updatedAt` más reciente.
+4. **Propagación de Borrados con Soft-Delete**: Al eliminar un registro en la nube, se estampa `deleted_at = now()` para que otros dispositivos conectados sepan que deben eliminarlo de su caché local antes de la purga física.
+5. **Merge al Iniciar Sesión**: Si un usuario tiene gastos cargados localmente de forma anónima y decide crear o iniciar sesión en su cuenta, `syncAllWithCloud` sube automáticamente los gastos locales a la base de datos sin pérdida de información.
 
 ---
 
 ## 2. 🏛️ Arquitectura de Componentes
 
-La aplicación está diseñada para operar como una Single Page Application (SPA) Mobile-First contenida en un marco responsivo centrado (ancho máximo `max-w-md` en pantallas grandes).
+La aplicación opera como una Single Page Application (SPA) Mobile-First centrada con ancho máximo `max-w-md` en pantallas grandes.
 
 ### 2.1 Árbol de Componentes
 
@@ -118,6 +197,7 @@ La aplicación está diseñada para operar como una Single Page Application (SPA
 App
 ├── Layout
 │   ├── Header
+│   │   ├── SyncBadge (🟢 Sincronizado | 🔄 Sincronizando | 🟡 Offline | ☁️ Sincronizar)
 │   │   └── ExportButton
 │   ├── PeriodFilter (Píldoras Este mes / Mes anterior / Todo)
 │   ├── SummaryCards
@@ -131,11 +211,7 @@ App
 │   └── FloatingActionButton (FAB [+] para abrir carga rápida)
 ├── AddExpenseSheet (BottomSheet modal para alta y edición)
 │   └── ExpenseForm
-│       ├── TypeSelector (Toggle Gasto Real vs Compra Delayeada)
-│       ├── AmountInput (Display numérico gigante con inputMode decimal)
-│       ├── CategorySelector (Grid táctil con íconos)
-│       ├── DescriptionInput (Concepto)
-│       └── DateInput (Selector de fecha)
+├── AuthModal (BottomSheet para login, registro, auto-confirmación y cierre de sesión)
 ├── ExportPanel (Modal con vista previa para WhatsApp y descarga de CSV)
 ├── ConfirmDialog (Modal reutilizable para acciones destructivas)
 └── Toaster (Contenedor de notificaciones flotantes reactivas)
@@ -146,25 +222,25 @@ App
 | Componente | Archivo | Responsabilidad Única |
 |---|---|---|
 | `Layout` | `src/components/layout/Layout.tsx` | Contenedor principal centrado (`max-w-md mx-auto min-h-screen pb-24 relative bg-slate-50`). Asegura el área segura (safe-area) de dispositivos móviles. |
-| `Header` | `src/components/layout/Header.tsx` | Muestra el isotipo y nombre de la app, el tagline conductual breve y el botón de acceso directo a `ExportPanel`. |
+| `Header` | `src/components/layout/Header.tsx` | Muestra el isotipo y nombre de la app, el botón de estado de sincronización / autenticación y el acceso a `ExportPanel`. |
+| `AuthModal` | `src/components/auth/AuthModal.tsx` | Modal de autenticación conmutador de SignIn/SignUp, visualización de usuario vinculado, forzado manual de sync y cierre de sesión. Sanitiza inputs automáticamente. |
 | `PeriodFilter` | `src/components/dashboard/PeriodFilter.tsx` | Selector segmentado tipo píldora (`Este mes`, `Mes anterior`, `Todo el historial`). Controla el filtro activo en `useFilterStore`. |
 | `SummaryCards` | `src/components/dashboard/SummaryCards.tsx` | Renderiza el bloque superior con las 3 tarjetas de métricas. Orquesta la sincronización con los cálculos de `utils/metrics.ts`. |
-| `TransferActionCard` | `src/components/dashboard/TransferActionCard.tsx` | **Componente Estrella**: Muestra el monto exacto pendiente de transferir a la cuenta de ahorro. Si el monto es > 0, despliega el botón `[ Ya lo transferí ]`. Si es 0, muestra el estado de éxito "Al día con el ahorro 🎉". |
-| `ExpenseHistory` | `src/components/history/ExpenseHistory.tsx` | Lista cronológica descendente. Agrupa los gastos filtrados utilizando `utils/date.ts`. |
-| `ExpenseHistoryGroup` | `src/components/history/ExpenseHistoryGroup.tsx` | Encabezado de grupo de fecha ("Hoy", "Ayer", o fecha formal) con subtotal neto del día y lista de items. |
-| `ExpenseListItem` | `src/components/history/ExpenseListItem.tsx` | Fila interactiva de gasto: ícono de categoría, descripción, badge visual (Gasto vs Delayeado), badge de "Transferido" y menú de acciones (Editar / Eliminar). |
-| `FloatingActionButton` | `src/components/form/FloatingActionButton.tsx` | Botón circular fijo (`bottom-6 right-6`), tamaño táctil de 56x56px con elevación, accesible con el pulgar para abrir `AddExpenseSheet`. |
-| `AddExpenseSheet` | `src/components/form/AddExpenseSheet.tsx` | BottomSheet modal con backdrop oscurecido y animación de deslizamiento desde el pie de pantalla. Soporta cierre por tap afuera o tecla `Escape`. |
-| `ExpenseForm` | `src/components/form/ExpenseForm.tsx` | Formulario de alta/edición. Cuenta con toggle de tipo, input de monto de gran tamaño, selector de categoría por tarjetas táctiles y botón de envío dinámico. |
-| `ExportPanel` | `src/components/export/ExportPanel.tsx` | Modal con 2 pestañas: "WhatsApp" (con botón de copia directa) y "Excel / CSV" (con botón de descarga de archivo). Muestra resumen de rendición. |
-| `ConfirmDialog` | `src/components/ui/ConfirmDialog.tsx` | Modal de confirmación accesible para eliminar gastos o resetear datos. Prohibido el uso de `window.confirm`. |
-| `Toaster` | `src/components/ui/Toaster.tsx` | Visualizador de notificaciones toast automáticas con auto-dismiss a los 3 segundos. |
+| `TransferActionCard` | `src/components/dashboard/TransferActionCard.tsx` | **Componente Estrella**: Muestra el monto exacto pendiente de transferir a la cuenta de ahorro. Si es > 0 despliega `[ Ya lo transferí ]`; si es 0 muestra estado de éxito. |
+| `ExpenseHistory` | `src/components/history/ExpenseHistory.tsx` | Lista cronológica descendente agrupada por fecha. |
+| `ExpenseListItem` | `src/components/history/ExpenseListItem.tsx` | Fila interactiva de gasto: ícono, categoría, badges de estado y menú de acciones (Editar / Eliminar). |
+| `FloatingActionButton` | `src/components/form/FloatingActionButton.tsx` | Botón circular fijo (`bottom-6 right-6`, 56x56px), accesible con el pulgar para abrir `AddExpenseSheet`. |
+| `AddExpenseSheet` | `src/components/form/AddExpenseSheet.tsx` | BottomSheet modal con backdrop oscurecido y animación de deslizamiento. |
+| `ExpenseForm` | `src/components/form/ExpenseForm.tsx` | Formulario de alta/edición de gastos con toggle de tipo, input numérico grande y grid de categorías. |
+| `ExportPanel` | `src/components/export/ExportPanel.tsx` | Modal con pestañas para WhatsApp (con copiado directo) y CSV para Excel. |
+| `ConfirmDialog` | `src/components/ui/ConfirmDialog.tsx` | Modal de confirmación accesible para eliminar gastos o resetear datos. Prohibido `window.confirm`. |
+| `Toaster` | `src/components/ui/Toaster.tsx` | Notificaciones toast automáticas con auto-dismiss a los 3 segundos. |
 
 ---
 
 ## 3. 💬 Tabla de Exact Spanish Strings (`src/constants/strings.ts`)
 
-Esta tabla es la **ÚNICA fuente de verdad** para todos los textos visibles en la interfaz. La app utiliza un tono argentino/latinoamericano natural, empático y con voseo (`anotá`, `guardá`, `transferí`, `querés`). Queda terminantemente prohibido inventar textos inline en los componentes.
+Esta tabla es la **ÚNICA fuente de verdad** para todos los textos visibles en la interfaz. La app utiliza un tono argentino/latinoamericano natural, empático y con voseo (`anotá`, `guardá`, `transferí`, `querés`).
 
 ```typescript
 export const STRINGS = {
@@ -267,14 +343,31 @@ export const STRINGS = {
   TOAST_CSV_DOWNLOADED: 'Archivo CSV descargado con éxito.',
   TOAST_ERROR_INVALID_AMOUNT: 'Por favor ingresá un monto válido mayor a 0.',
   TOAST_ERROR_NO_DESCRIPTION: 'Por favor agregá un detalle o concepto.',
+
+  // Sincronización Multi-Dispositivo & Auth
+  SYNC_STATUS_SYNCED: 'Sincronizado',
+  SYNC_STATUS_SYNCING: 'Sincronizando...',
+  SYNC_STATUS_OFFLINE: 'Sin conexión',
+  SYNC_STATUS_GUEST: 'Sincronizar',
+  AUTH_TITLE_SIGNIN: 'Iniciar Sesión',
+  AUTH_TITLE_SIGNUP: 'Crear Cuenta para Sincronizar',
+  AUTH_EMAIL_LABEL: 'Correo electrónico',
+  AUTH_PASSWORD_LABEL: 'Contraseña (mínimo 6 caracteres)',
+  AUTH_BUTTON_SIGNIN: 'Entrar y sincronizar',
+  AUTH_BUTTON_SIGNUP: 'Crear cuenta y sincronizar',
+  AUTH_BUTTON_LOGOUT: 'Cerrar sesión en este dispositivo',
+  AUTH_SUCCESS_LOGIN: '¡Sesión iniciada! Tus gastos se están sincronizando.',
+  AUTH_SUCCESS_LOGOUT: 'Cerraste sesión correctamente.',
+  AUTH_SWITCH_TO_SIGNUP: '¿No tenés cuenta todavía? Creala en un toque',
+  AUTH_SWITCH_TO_SIGNIN: '¿Ya tenés cuenta? Iniciá sesión acá',
+  AUTH_ERROR_GENERIC: 'Ocurrió un error al autenticar. Verificá los datos.',
+  AUTH_SUBTITLE: 'Accedé al mismo historial en tu celular, computadora y tablet en tiempo real.',
 } as const;
 ```
 
 ---
 
 ## 4. 🏷️ Categorías e Iconografía (`src/constants/categories.ts`)
-
-Cada categoría cuenta con un identificador único, etiqueta en español, icono de `lucide-react` y colores visuales asociados:
 
 | ID | Nombre en Español | Ícono Lucide | Color Badge (Tailwind) |
 |---|---|---|---|
@@ -343,11 +436,8 @@ export function calculateMetrics(
 
 ## 6. 📤 Especificación de Exportación (`src/utils/export.ts`)
 
-El módulo de exportación soporta dos canales de rendición:
-
-### 6.1 Formato WhatsApp (Texto Plano con Markdown Nativo)
-El texto generado no requiere edición manual y se estructura así:
-
+### 6.1 Formato WhatsApp (Texto Plano con Markdown)
+Genera el desglose organizado con asteriscos para negritas compatibles con WhatsApp:
 ```text
 📊 *Rendición de Gastos - DelaySpend*
 🗓 *Período:* Septiembre 2026
@@ -355,7 +445,6 @@ El texto generado no requiere edición manual y se estructura así:
 💸 *Gastos Reales Realizados:*
 • 11/09: Supermercado Coto - $14.500,00 [Supermercado]
 • 09/09: Carga SUBE - $2.400,00 [Transporte]
-• 05/09: Almuerzo facultad - $5.800,00 [Comida & Bebidas]
 
 🛡 *Compras Delayeadas (Ahorradas):*
 • 10/09: Auriculares Bluetooth - $35.000,00 [Tecnología] (Ya transferido ✅)
@@ -370,25 +459,45 @@ El texto generado no requiere edición manual y se estructura así:
 Generado con DelaySpend 🚀
 ```
 
-### 6.2 Formato CSV para Hojas de Cálculo (Excel / Google Sheets)
-- **Codificación**: UTF-8 con BOM (`\uFEFF`) obligatorio para que Microsoft Excel en Windows abra las tildes y caracteres en español sin romperse.
-- **Delimitador**: Coma (`,`) o punto y coma (`;`). Se provee con escape de comillas según estándar RFC 4180.
-- **Columnas**:
-  1. `Fecha` (`YYYY-MM-DD`)
-  2. `Tipo` (`Gasto Real` o `Compra Delayeada`)
-  3. `Monto` (`0.00`)
-  4. `Categoría` (Nombre en español)
-  5. `Concepto / Detalle`
-  6. `Estado de Transferencia` (`Transferido`, `Pendiente de transferir`, `No aplica`)
-  7. `Fecha de Transferencia` (si aplica)
+### 6.2 Formato CSV (Excel / Google Sheets)
+- **Codificación**: UTF-8 con BOM (`\uFEFF`) obligatorio para evitar caracteres rotos en Windows.
+- **Escape RFC 4180**: Delimitado por comas con comillas de escape para descripciones con signos de puntuación.
+- **Columnas**: `Fecha`, `Tipo`, `Monto`, `Categoría`, `Concepto / Detalle`, `Estado de Transferencia`, `Fecha de Transferencia`.
 
 ---
 
 ## 7. 📱 Reglas de Interfaz Mobile-First y Accesibilidad
 
-1. **Diseño para 375px**: Todo elemento, padding y botón debe lucir perfecto en pantallas de 375px de ancho (iPhone SE).
-2. **Keypad Numérico**: El campo de monto utiliza `<input type="text" inputMode="decimal" pattern="[0-9]*" />` para forzar la apertura del teclado numérico grande en iOS y Android.
-3. **Touch Targets**: Botones, selectores y tarjetas interactivas cuentan con una altura mínima de `44px` para garantizar la operabilidad con una sola mano.
-4. **Animaciones Fluidas**: Despliegue de modales y toasts con transiciones CSS nativas ligeras (`transition-all duration-200 ease-out`).
-5. **No confirmaciones nativas**: Prohibido `window.confirm`, `window.alert` o `window.prompt`. Se utiliza `ConfirmDialog` y `Toaster`.
+1. **Diseño para 375px**: Optimizado para uso con una sola mano sin scrolling horizontal.
+2. **Keypad Numérico**: `<input type="text" inputMode="decimal" pattern="[0-9]*" />` para abrir el teclado numérico directamente.
+3. **Touch Targets de 44px**: Todos los elementos interactivos cumplen con el estándar táctil ergonómico.
+4. **No confirmaciones nativas**: Prohibido `window.confirm`. Se utiliza exclusivamente `ConfirmDialog`.
 
+---
+
+## 8. ☁️ Infraestructura Cloud, Sincronización y Seguridad
+
+### 8.1 PostgreSQL con Row Level Security (RLS)
+El backend en Supabase garantiza privacidad de grado bancario:
+- RLS activo en `public.expenses`.
+- Cada usuario solo puede ver, insertar, actualizar o eliminar filas donde `user_id = auth.uid()`.
+
+### 8.2 Trigger PL/pgSQL de Auto-Confirmación
+Para evitar la fricción y el límite gratuito de 2 correos/hora de Supabase SMTP, la base de datos cuenta con una función trigger que confirma automáticamente las cuentas al crearse:
+```sql
+create or replace function public.auto_confirm_user()
+returns trigger as $$
+begin
+  new.confirmed_at = coalesce(new.confirmed_at, now());
+  new.email_confirmed_at = coalesce(new.email_confirmed_at, now());
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger on_auth_user_created_auto_confirm
+  before insert on auth.users
+  for each row execute function public.auto_confirm_user();
+```
+
+### 8.3 Suscripciones WebSocket en Tiempo Real
+Al vincular una cuenta, `useSyncStore` crea un canal dinámico `user_expenses_${userId}` escuchando eventos `postgres_changes` sobre `public.expenses`. Cualquier inserción o modificación en un dispositivo secundario se refleja en milisegundos en la UI local.

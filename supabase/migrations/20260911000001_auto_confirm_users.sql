@@ -13,3 +13,4 @@ drop trigger if exists on_auth_user_created_auto_confirm on auth.users;
 create trigger on_auth_user_created_auto_confirm
   before insert on auth.users
   for each row execute function public.auto_confirm_user();
+

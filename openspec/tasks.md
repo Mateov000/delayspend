@@ -347,3 +347,87 @@
 - [x] **C.5.4 — Cierre y Entrega de Release v1.0.0**  
   - **PROYECTO COMPLETO**: Presentar reporte de release al usuario indicando el cumplimiento de todas las tareas y especificaciones.
 
+---
+
+## ☁️ TRACK D: Sincronización Multi-Dispositivo, Backend Supabase y Despliegue en Producción (v1.1.0)
+
+*Objetivo del Track: Habilitar sincronización en la nube multi-dispositivo en tiempo real, persistencia relacional en PostgreSQL (Supabase), cuentas de usuario protegidas por RLS, auto-confirmación de cuentas sin límites de correo y despliegue global en Vercel.*
+
+### Fase D.1: Setup de Supabase, Esquema Relacional y Seguridad RLS
+- [x] **D.1.1 — Crear esquema relacional en PostgreSQL (`supabase/migrations/20260911000000_create_expenses.sql`)**  
+  - Definir tabla `public.expenses` con clave primaria UUID, checks de monto > 0, soft-deletes (`deleted_at`) e índices optimizados por `user_id`, `date` y `updated_at`.  
+  - *Criterio de validación*: Tabla creada en cluster PostgreSQL (`sa-east-1`, São Paulo) con tipos estrictos.
+
+- [x] **D.1.2 — Configurar Row Level Security (RLS) y publicación en tiempo real**  
+  - Habilitar RLS en `public.expenses` con políticas estrictas de SELECT, INSERT, UPDATE y DELETE basadas en `auth.uid() = user_id`.  
+  - Agregar la tabla a la publicación `supabase_realtime` para replicación por WebSockets.  
+  - *Criterio de validación*: Las consultas anónimas o de otros usuarios quedan completamente bloqueadas por RLS.
+
+---
+
+### Fase D.2: Optimización de Autenticación y Auto-Confirmación
+- [x] **D.2.1 — Implementar trigger PL/pgSQL de auto-confirmación (`supabase/migrations/20260911000001_auto_confirm_users.sql`)**  
+  - Crear función `auto_confirm_user()` y trigger `before insert on auth.users` que estampe `confirmed_at = now()` y `email_confirmed_at = now()`.  
+  - Resolver el cuello de botella del límite gratuito de 2 correos/hora de Supabase SMTP.  
+  - *Criterio de validación*: Cualquier usuario nuevo se registra e ingresa sin requerir validación por email.
+
+- [x] **D.2.2 — Aprovisionamiento y verificación de usuario de prueba**  
+  - Crear usuario de pruebas `prueba@gmail.com` / `123456` con confirmación inmediata para testing cruzado.  
+  - *Criterio de validación*: Login exitoso con emisión de JWT sin errores.
+
+---
+
+### Fase D.3: Stores de Frontend (Autenticación y Sincronización)
+- [x] **D.3.1 — Configurar cliente de Supabase (`src/lib/supabase.ts`)**  
+  - Inicializar `@supabase/supabase-js` leyendo variables `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`, con persistencia automática de sesión.  
+  - *Criterio de validación*: Cliente exportado y tipado, con bandera `isSupabaseConfigured`.
+
+- [x] **D.3.2 — Crear Store de Autenticación (`src/store/useAuthStore.ts`)**  
+  - Manejar estado de `user`, `session` y métodos `signIn`, `signUp`, `signOut`.  
+  - Incorporar sanitización de correo (`email.trim().toLowerCase()`) y traducción de errores de GoTrue al español.  
+  - *Criterio de validación*: Login y registro fluidos, preservando sesión al recargar la app.
+
+- [x] **D.3.3 — Crear Motor de Sincronización Local-First (`src/store/useSyncStore.ts`)**  
+  - Implementar suscripción WebSocket a `postgres_changes` sobre `public.expenses` con canal específico por usuario.  
+  - Implementar resolución de conflictos Last-Write-Wins (LWW) por `updatedAt`.  
+  - Implementar merge bidireccional inteligente en `syncAllWithCloud(userId)` para subir gastos locales anónimos al iniciar sesión.  
+  - *Criterio de validación*: Altas o bajas remotas se reflejan en la UI en menos de 1 segundo sin recargar.
+
+- [x] **D.3.4 — Conectar listeners reactivos en el store local (`src/store/useExpenseStore.ts`)**  
+  - Exportar función `registerSyncListener` para desacoplar Zustand de Supabase.  
+  - Invocar el listener en `addExpense`, `updateExpense`, `deleteExpense`, `markAllPendingAsTransferred` y `toggleTransferred`.  
+  - *Criterio de validación*: Operaciones locales a 0ms sin latencia percibida por el usuario.
+
+---
+
+### Fase D.4: Interfaz de Usuario para Autenticación y Estado Cloud
+- [x] **D.4.1 — Crear componente AuthModal (`src/components/auth/AuthModal.tsx`)**  
+  - BottomSheet conmutador entre "Iniciar Sesión" y "Crear Cuenta", con inputs accesibles y optimizados para teclados móviles (`autoCapitalize="none"`, `autoCorrect="off"`).  
+  - Visualización del usuario vinculado y botón de cierre de sesión seguro.  
+  - Detección inteligente de cuentas existentes: si la cuenta ya existe, cambia automáticamente a la pestaña de login.  
+  - *Criterio de validación*: Formulario usable en pantallas de 375px con feedback de toasts en español.
+
+- [x] **D.4.2 — Integrar indicador de conectividad y sync en Header (`src/components/layout/Header.tsx`)**  
+  - Badges dinámicos: 🟢 Sincronizado, 🔄 Sincronizando..., 🟡 Sin conexión y ☁️ Sincronizar (para usuarios locales).  
+  - *Criterio de validación*: El usuario siempre conoce con claridad el estado de su sincronización.
+
+---
+
+### Fase D.5: Despliegue en Vercel, Repositorio GitHub y Release v1.1.0
+- [x] **D.5.1 — Configurar enrutamiento SPA y variables de entorno en Vercel (`vercel.json`)**  
+  - Configurar rewrite a `/index.html` para evitar 404s en recargas.  
+  - *Criterio de validación*: URLs limpias servidas con compresión gzip y headers PWA.
+
+- [x] **D.5.2 — Crear y vincular repositorio público en GitHub**  
+  - Inicializar y subir proyecto a [https://github.com/Mateov000/delayspend](https://github.com/Mateov000/delayspend).  
+  - *Criterio de validación*: Repositorio actualizado con historial de commits y documentación limpia.
+
+- [x] **D.5.3 — Despliegue en producción en Vercel**  
+  - Desplegar la PWA conectada a Supabase en [https://delayspend.vercel.app](https://delayspend.vercel.app).  
+  - *Criterio de validación*: Producción activa, SSL válido y Service Worker precacheando assets.
+
+- [x] **D.5.4 — Validación integral y cierre de Release v1.1.0**  
+  - Probar flujo completo: login simultáneo en móvil y computadora, registro de gasto en un dispositivo y verificación de aparición instantánea en el otro.  
+  - *Criterio de validación*: Sincronización multi-dispositivo 100% operativa y especificaciones alineadas.
+
+

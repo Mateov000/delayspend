@@ -144,3 +144,4 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user: null, session: null, isLoading: false });
   },
 }));
+
