@@ -86,6 +86,11 @@ export const STRINGS = {
   EXPORT_WHATSAPP_PENDING_TRANSFER: '• Monto a transferir a caja de ahorro:',
   EXPORT_WHATSAPP_TOTAL_BUDGET: '• Total presupuestario rendido:',
   EXPORT_WHATSAPP_FOOTER: 'Generado con DelaySpend 🚀',
+  EXPORT_UNIFY_LABEL: 'Rendición unificada (para rendir a padres)',
+  EXPORT_UNIFY_DESC: 'Muestra todos los movimientos como gastos directos sin distinguir delayeados, justificando el monto total.',
+  EXPORT_WHATSAPP_UNIFIED_SECTION: '💸 *Detalle de Gastos del Período:*',
+  EXPORT_WHATSAPP_UNIFIED_TOTAL: '• Total a rendir / reponer:',
+  EXPORT_CSV_UNIFIED_DESC: 'Este archivo unifica todas las compras como gastos directos (Fecha, Monto, Categoría, Detalle) sin indicar si fueron postergadas o delayeadas.',
 
   // Notificaciones Toast
   TOAST_EXPENSE_ADDED_REAL: 'Gasto registrado correctamente.',

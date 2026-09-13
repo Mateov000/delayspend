@@ -5,7 +5,7 @@
 **Tipo de proyecto:** PWA de finanzas personales basada en psicología conductual  
 **Arquitectura:** Local-First / Híbrida — PWA Offline-First con Backend en la Nube (Supabase PostgreSQL, Auth con triggers, Realtime WebSockets) y Hosting en Vercel  
 **Metodología de desarrollo:** Spec-driven, inspirada en OpenSpec/ChangeSpec  
-**Versión de este documento:** 1.1.0 · **Última actualización:** 2026-09-11  
+**Versión de este documento:** 1.1.0 · **Última actualización:** 2026-09-13  
 
 ---
 
@@ -26,7 +26,7 @@ La app trackea dos tipos de eventos:
 - **Gasto real**: plata que efectivamente salió de tu bolsillo.
 - **Gasto delayeado**: una compra que ibas a hacer y decidiste postergar (o directamente no hacer). Ese monto **no se gastó**, pero tampoco debería "perderse" en la cuenta corriente: DelaySpend calcula exactamente cuánto de esa plata tenés que mover a una cuenta remunerada o de ahorro.
 
-Como caso de uso principal (aunque no excluyente), está pensada para alguien a quien sus padres le financian los gastos del mes: la app funciona como herramienta de **rendición de cuentas transparente**, generando un resumen prolijo y exportable para mandar por WhatsApp o mail, sin necesidad de mostrar el resto de la cuenta bancaria.
+Como caso de uso principal (aunque no excluyente), está pensada para alguien a quien sus padres le financian los gastos del mes: la app funciona como herramienta de **rendición de cuentas transparente**, generando un resumen prolijo y exportable para mandar por WhatsApp o mail, sin necesidad de mostrar el resto de la cuenta bancaria. Además, cuenta con un **modo de rendición unificada** para presentar todos los montos como gastos comunes y justificar directamente la transferencia de dinero.
 
 ### Modelo de Almacenamiento: Local-First Híbrido
 La app **no depende de la conectividad para funcionar**, pero **tampoco se limita a un único dispositivo**:
@@ -120,7 +120,7 @@ delayspend/
 │   │   ├── dashboard/       # SummaryCards y sus 3 tarjetas, PeriodFilter
 │   │   ├── history/         # ExpenseHistory, ExpenseHistoryGroup, ExpenseListItem
 │   │   ├── form/            # AddExpenseSheet, ExpenseForm, FloatingActionButton
-│   │   ├── export/          # ExportPanel (Reportes para WhatsApp y CSV)
+│   │   ├── export/          # ExportPanel (Reportes para WhatsApp y CSV detallados o unificados)
 │   │   └── ui/              # Button, Card, BottomSheet, ConfirmDialog, Badge, EmptyState, Toaster
 │   ├── store/
 │   │   ├── types.ts         # Expense, ExpenseType, Category, PeriodFilterState, FinancialMetrics
@@ -133,7 +133,7 @@ delayspend/
 │   │   ├── metrics.ts       # Cálculo de las métricas financieras conductuales
 │   │   ├── format.ts        # Moneda argentina ($ ARS) y formateo de fechas
 │   │   ├── date.ts          # Agrupado cronológico y validación de períodos
-│   │   ├── export.ts        # Generador de reportes en texto plano y CSV con BOM
+│   │   ├── export.ts        # Generador de reportes en texto plano y CSV (detallado y unificado)
 │   │   └── id.ts            # Generador UUID seguro
 │   └── constants/
 │       ├── categories.ts    # Catálogo de 10 categorías con íconos Lucide y colores
@@ -163,7 +163,8 @@ El proyecto cumple al 100% con los siguientes criterios de calidad en producció
 - [x] El formulario de carga es 100% operable con una sola mano en viewports de 375px de ancho.
 - [x] El monto a transferir (métrica estrella) baja a $0 al usar "Ya lo transferí", y solo vuelve a subir con nuevos delays.
 - [x] El reporte para WhatsApp se copia en un solo tap y se pega directamente sin requerir edición manual.
-- [x] El archivo CSV descargado abre correctamente en Microsoft Excel y Google Sheets con codificación UTF-8 BOM.
+- [x] Soporte para rendición unificada (para rendir a padres): permite consolidar todos los gastos sin distinguir delayeados y justificar el total presupuestario.
+- [x] El archivo CSV descargado abre correctamente en Microsoft Excel y Google Sheets con codificación UTF-8 BOM (en modo detallado o unificado).
 - [x] Despliegue activo en la nube en Vercel y repositorio sincronizado en GitHub.
 
 ---

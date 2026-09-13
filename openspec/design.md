@@ -1,17 +1,21 @@
 # DelaySpend — Diseño Técnico y Especificación de Dominio
 
 **Documento:** `openspec/design.md`  
+**Versión:** 1.0.0 · **Estado:** Aprobado para construcción  
 **Versión:** 1.1.0 · **Estado:** Implementado en Producción  
 **Metodología:** OpenSpec / ChangeSpec  
 
 ---
 
+## 1. 📐 Modelo de Datos y Contrato del Store (Zustand)
 ## 1. 📐 Modelo de Datos, Esquema Dual y Contratos de Store
 
+Todo el estado financiero se gestiona mediante un único store de Zustand (`useExpenseStore`), tipado de forma estricta y persistido automáticamente en `localStorage` con la clave `delayspend_storage_v1`.
 El sistema opera bajo un paradigma **Local-First con Sincronización en la Nube**. La capa de almacenamiento está dividida en dos niveles:
 1. **Capa Local (Caché y Buffer Offline de 0ms)**: Gestionada por Zustand con el middleware `persist` en `localStorage` (clave `delayspend_storage_v1`). Garantiza latencia cero y total disponibilidad offline.
 2. **Capa Cloud (Fuente de Verdad Persistente)**: Base de datos relacional PostgreSQL en Supabase (`sa-east-1`, São Paulo), protegida con Row Level Security (RLS) y sincronizada en tiempo real mediante WebSockets.
 
+### 1.1 Tipos de Dominio (`src/store/types.ts`)
 ---
 
 ### 1.1 Tipos de Dominio TypeScript (`src/store/types.ts`)
@@ -41,6 +45,7 @@ export interface Category {
 }
 
 export interface Expense {
+  id: string; // UUID v4 o nanoid (alfanumérico único)
   id: string; // UUID v4 (coincidente con PostgreSQL UUID)
   type: ExpenseType; // 'real': plata gastada | 'delayed': compra postergada
   amount: number; // Monto mayor a 0, redondeado a 2 decimales
@@ -48,6 +53,8 @@ export interface Expense {
   categoryId: CategoryId; // Categoría normalizada
   date: string; // Formato ISO 'YYYY-MM-DD'
   transferredAt: string | null; // ISO 8601 de la transferencia (null si no aplica o pendiente)
+  createdAt: string; // ISO 8601 de creación en el dispositivo
+  updatedAt: string; // ISO 8601 de última edición
   createdAt: string; // ISO 8601 de creación
   updatedAt: string; // ISO 8601 de última edición (clave para LWW)
 }
@@ -70,6 +77,7 @@ export interface FinancialMetrics {
 }
 ```
 
+### 1.2 Interfaz del Store Financiero (`src/store/useExpenseStore.ts`)
 ---
 
 ### 1.2 Esquema Relacional PostgreSQL en Supabase (`public.expenses`)
@@ -130,6 +138,7 @@ export interface ExpenseState {
   markAllPendingAsTransferred: () => void;
   toggleTransferred: (id: string) => void;
   
+  // Mantenimiento
   // Mantenimiento y Migración
   resetAllData: () => void;
   importExpenses: (expenses: Expense[]) => void;
@@ -140,8 +149,17 @@ type SyncListener = (action: 'push' | 'delete', item: Expense | string) => void;
 export function registerSyncListener(listener: SyncListener): void;
 ```
 
+### 1.3 Reglas de Negocio del Store
 ---
 
+1. **Inmutabilidad estricta**: Ninguna acción muta el array `expenses` in-place; siempre se retornan nuevas copias vía spread o `filter`/`map`.
+2. **Validación de Monto**: `amount` debe ser un número finito estrictamente mayor a `0`.
+3. **Mecánica de `transferredAt`**:
+   - Para gastos reales (`type === 'real'`), `transferredAt` siempre debe ser `null`.
+   - Para compras delayeadas (`type === 'delayed'`), nace con `transferredAt: null`.
+   - Al ejecutar `markAllPendingAsTransferred()`, todos los gastos con `type === 'delayed' && transferredAt === null` actualizan su `transferredAt` con el timestamp `new Date().toISOString()`.
+   - `toggleTransferred(id)` permite conmutar el estado si el usuario se equivocó o transfirió manualmente solo ese ítem.
+4. **Persistencia y Sanitización**: El middleware `persist` de Zustand serializa el array `expenses`. Al rehidratar, si alguna fecha o campo numérico viene corrupto, se descarta o repara sin romper la app.
 ### 1.4 Contrato del Store de Autenticación (`src/store/useAuthStore.ts`)
 
 ```typescript
@@ -189,6 +207,7 @@ export interface SyncState {
 
 ## 2. 🏛️ Arquitectura de Componentes
 
+La aplicación está diseñada para operar como una Single Page Application (SPA) Mobile-First contenida en un marco responsivo centrado (ancho máximo `max-w-md` en pantallas grandes).
 La aplicación opera como una Single Page Application (SPA) Mobile-First centrada con ancho máximo `max-w-md` en pantallas grandes.
 
 ### 2.1 Árbol de Componentes
@@ -211,6 +230,11 @@ App
 │   └── FloatingActionButton (FAB [+] para abrir carga rápida)
 ├── AddExpenseSheet (BottomSheet modal para alta y edición)
 │   └── ExpenseForm
+│       ├── TypeSelector (Toggle Gasto Real vs Compra Delayeada)
+│       ├── AmountInput (Display numérico gigante con inputMode decimal)
+│       ├── CategorySelector (Grid táctil con íconos)
+│       ├── DescriptionInput (Concepto)
+│       └── DateInput (Selector de fecha)
 ├── AuthModal (BottomSheet para login, registro, auto-confirmación y cierre de sesión)
 ├── ExportPanel (Modal con vista previa para WhatsApp y descarga de CSV)
 ├── ConfirmDialog (Modal reutilizable para acciones destructivas)
@@ -222,10 +246,21 @@ App
 | Componente | Archivo | Responsabilidad Única |
 |---|---|---|
 | `Layout` | `src/components/layout/Layout.tsx` | Contenedor principal centrado (`max-w-md mx-auto min-h-screen pb-24 relative bg-slate-50`). Asegura el área segura (safe-area) de dispositivos móviles. |
+| `Header` | `src/components/layout/Header.tsx` | Muestra el isotipo y nombre de la app, el tagline conductual breve y el botón de acceso directo a `ExportPanel`. |
 | `Header` | `src/components/layout/Header.tsx` | Muestra el isotipo y nombre de la app, el botón de estado de sincronización / autenticación y el acceso a `ExportPanel`. |
 | `AuthModal` | `src/components/auth/AuthModal.tsx` | Modal de autenticación conmutador de SignIn/SignUp, visualización de usuario vinculado, forzado manual de sync y cierre de sesión. Sanitiza inputs automáticamente. |
 | `PeriodFilter` | `src/components/dashboard/PeriodFilter.tsx` | Selector segmentado tipo píldora (`Este mes`, `Mes anterior`, `Todo el historial`). Controla el filtro activo en `useFilterStore`. |
 | `SummaryCards` | `src/components/dashboard/SummaryCards.tsx` | Renderiza el bloque superior con las 3 tarjetas de métricas. Orquesta la sincronización con los cálculos de `utils/metrics.ts`. |
+| `TransferActionCard` | `src/components/dashboard/TransferActionCard.tsx` | **Componente Estrella**: Muestra el monto exacto pendiente de transferir a la cuenta de ahorro. Si el monto es > 0, despliega el botón `[ Ya lo transferí ]`. Si es 0, muestra el estado de éxito "Al día con el ahorro 🎉". |
+| `ExpenseHistory` | `src/components/history/ExpenseHistory.tsx` | Lista cronológica descendente. Agrupa los gastos filtrados utilizando `utils/date.ts`. |
+| `ExpenseHistoryGroup` | `src/components/history/ExpenseHistoryGroup.tsx` | Encabezado de grupo de fecha ("Hoy", "Ayer", o fecha formal) con subtotal neto del día y lista de items. |
+| `ExpenseListItem` | `src/components/history/ExpenseListItem.tsx` | Fila interactiva de gasto: ícono de categoría, descripción, badge visual (Gasto vs Delayeado), badge de "Transferido" y menú de acciones (Editar / Eliminar). |
+| `FloatingActionButton` | `src/components/form/FloatingActionButton.tsx` | Botón circular fijo (`bottom-6 right-6`), tamaño táctil de 56x56px con elevación, accesible con el pulgar para abrir `AddExpenseSheet`. |
+| `AddExpenseSheet` | `src/components/form/AddExpenseSheet.tsx` | BottomSheet modal con backdrop oscurecido y animación de deslizamiento desde el pie de pantalla. Soporta cierre por tap afuera o tecla `Escape`. |
+| `ExpenseForm` | `src/components/form/ExpenseForm.tsx` | Formulario de alta/edición. Cuenta con toggle de tipo, input de monto de gran tamaño, selector de categoría por tarjetas táctiles y botón de envío dinámico. |
+| `ExportPanel` | `src/components/export/ExportPanel.tsx` | Modal con 2 pestañas: "WhatsApp" (con botón de copia directa) y "Excel / CSV" (con botón de descarga de archivo). Muestra resumen de rendición. |
+| `ConfirmDialog` | `src/components/ui/ConfirmDialog.tsx` | Modal de confirmación accesible para eliminar gastos o resetear datos. Prohibido el uso de `window.confirm`. |
+| `Toaster` | `src/components/ui/Toaster.tsx` | Visualizador de notificaciones toast automáticas con auto-dismiss a los 3 segundos. |
 | `TransferActionCard` | `src/components/dashboard/TransferActionCard.tsx` | **Componente Estrella**: Muestra el monto exacto pendiente de transferir a la cuenta de ahorro. Si es > 0 despliega `[ Ya lo transferí ]`; si es 0 muestra estado de éxito. |
 | `ExpenseHistory` | `src/components/history/ExpenseHistory.tsx` | Lista cronológica descendente agrupada por fecha. |
 | `ExpenseListItem` | `src/components/history/ExpenseListItem.tsx` | Fila interactiva de gasto: ícono, categoría, badges de estado y menú de acciones (Editar / Eliminar). |
@@ -240,6 +275,7 @@ App
 
 ## 3. 💬 Tabla de Exact Spanish Strings (`src/constants/strings.ts`)
 
+Esta tabla es la **ÚNICA fuente de verdad** para todos los textos visibles en la interfaz. La app utiliza un tono argentino/latinoamericano natural, empático y con voseo (`anotá`, `guardá`, `transferí`, `querés`). Queda terminantemente prohibido inventar textos inline en los componentes.
 Esta tabla es la **ÚNICA fuente de verdad** para todos los textos visibles en la interfaz. La app utiliza un tono argentino/latinoamericano natural, empático y con voseo (`anotá`, `guardá`, `transferí`, `querés`).
 
 ```typescript
@@ -331,6 +367,11 @@ export const STRINGS = {
   EXPORT_WHATSAPP_PENDING_TRANSFER: '• Monto a transferir a caja de ahorro:',
   EXPORT_WHATSAPP_TOTAL_BUDGET: '• Total presupuestario rendido:',
   EXPORT_WHATSAPP_FOOTER: 'Generado con DelaySpend 🚀',
+  EXPORT_UNIFY_LABEL: 'Rendición unificada (para rendir a padres)',
+  EXPORT_UNIFY_DESC: 'Muestra todos los movimientos como gastos directos sin distinguir delayeados, justificando el monto total.',
+  EXPORT_WHATSAPP_UNIFIED_SECTION: '💸 *Detalle de Gastos del Período:*',
+  EXPORT_WHATSAPP_UNIFIED_TOTAL: '• Total a rendir / reponer:',
+  EXPORT_CSV_UNIFIED_DESC: 'Este archivo unifica todas las compras como gastos directos (Fecha, Monto, Categoría, Detalle) sin indicar si fueron postergadas o delayeadas.',
 
   // Notificaciones Toast
   TOAST_EXPENSE_ADDED_REAL: 'Gasto registrado correctamente.',
@@ -368,6 +409,8 @@ export const STRINGS = {
 ---
 
 ## 4. 🏷️ Categorías e Iconografía (`src/constants/categories.ts`)
+
+Cada categoría cuenta con un identificador único, etiqueta en español, icono de `lucide-react` y colores visuales asociados:
 
 | ID | Nombre en Español | Ícono Lucide | Color Badge (Tailwind) |
 |---|---|---|---|
@@ -436,8 +479,15 @@ export function calculateMetrics(
 
 ## 6. 📤 Especificación de Exportación (`src/utils/export.ts`)
 
+El módulo de exportación soporta dos canales de rendición (WhatsApp y archivo CSV) con dos modalidades de visualización seleccionables por el usuario:
+- **Modo Detallado (Estándar)**: Distingue claramente entre gastos reales efectivamente realizados y compras delayeadas/ahorradas, con sus estados de transferencia.
+- **Modo Unificado (para rendir a padres)**: Presenta todos los movimientos como gastos comunes y calcula el monto presupuestario total a justificar/reponer, sin distinguir compras postergadas ni tags de transferencia.
+
+---
+
 ### 6.1 Formato WhatsApp (Texto Plano con Markdown)
-Genera el desglose organizado con asteriscos para negritas compatibles con WhatsApp:
+
+#### Opción A: Modo Detallado
 ```text
 📊 *Rendición de Gastos - DelaySpend*
 🗓 *Período:* Septiembre 2026
@@ -445,6 +495,7 @@ Genera el desglose organizado con asteriscos para negritas compatibles con Whats
 💸 *Gastos Reales Realizados:*
 • 11/09: Supermercado Coto - $14.500,00 [Supermercado]
 • 09/09: Carga SUBE - $2.400,00 [Transporte]
+• 05/09: Almuerzo facultad - $5.800,00 [Comida & Bebidas]
 
 🛡 *Compras Delayeadas (Ahorradas):*
 • 10/09: Auriculares Bluetooth - $35.000,00 [Tecnología] (Ya transferido ✅)
@@ -459,15 +510,41 @@ Genera el desglose organizado con asteriscos para negritas compatibles con Whats
 Generado con DelaySpend 🚀
 ```
 
-### 6.2 Formato CSV (Excel / Google Sheets)
-- **Codificación**: UTF-8 con BOM (`\uFEFF`) obligatorio para evitar caracteres rotos en Windows.
+#### Opción B: Modo Unificado (para padres)
+```text
+📊 *Rendición de Gastos - DelaySpend*
+🗓 *Período:* Septiembre 2026
+
+💸 *Detalle de Gastos del Período:*
+• 11/09: Supermercado Coto - $14.500,00 [Supermercado]
+• 10/09: Auriculares Bluetooth - $35.000,00 [Tecnología]
+• 09/09: Carga SUBE - $2.400,00 [Transporte]
+• 08/09: Zapatillas en promo - $42.000,00 [Ropa & Calzado]
+• 05/09: Almuerzo facultad - $5.800,00 [Comida & Bebidas]
+
+📈 *Resumen Financiero:*
+• Total a rendir / reponer: $99.700,00
+
+Generado con DelaySpend 🚀
+```
+
+---
+
+### 6.2 Formato CSV para Hojas de Cálculo (Excel / Google Sheets)
+- **Codificación**: UTF-8 con BOM (`\uFEFF`) obligatorio para evitar caracteres rotos en Microsoft Excel para Windows.
 - **Escape RFC 4180**: Delimitado por comas con comillas de escape para descripciones con signos de puntuación.
-- **Columnas**: `Fecha`, `Tipo`, `Monto`, `Categoría`, `Concepto / Detalle`, `Estado de Transferencia`, `Fecha de Transferencia`.
+- **Columnas Modo Detallado**: `Fecha`, `Tipo`, `Monto`, `Categoría`, `Concepto / Detalle`, `Estado de Transferencia`, `Fecha de Transferencia`.
+- **Columnas Modo Unificado**: `Fecha`, `Monto`, `Categoría`, `Concepto / Detalle`.
 
 ---
 
 ## 7. 📱 Reglas de Interfaz Mobile-First y Accesibilidad
 
+1. **Diseño para 375px**: Todo elemento, padding y botón debe lucir perfecto en pantallas de 375px de ancho (iPhone SE).
+2. **Keypad Numérico**: El campo de monto utiliza `<input type="text" inputMode="decimal" pattern="[0-9]*" />` para forzar la apertura del teclado numérico grande en iOS y Android.
+3. **Touch Targets**: Botones, selectores y tarjetas interactivas cuentan con una altura mínima de `44px` para garantizar la operabilidad con una sola mano.
+4. **Animaciones Fluidas**: Despliegue de modales y toasts con transiciones CSS nativas ligeras (`transition-all duration-200 ease-out`).
+5. **No confirmaciones nativas**: Prohibido `window.confirm`, `window.alert` o `window.prompt`. Se utiliza `ConfirmDialog` y `Toaster`.
 1. **Diseño para 375px**: Optimizado para uso con una sola mano sin scrolling horizontal.
 2. **Keypad Numérico**: `<input type="text" inputMode="decimal" pattern="[0-9]*" />` para abrir el teclado numérico directamente.
 3. **Touch Targets de 44px**: Todos los elementos interactivos cumplen con el estándar táctil ergonómico.

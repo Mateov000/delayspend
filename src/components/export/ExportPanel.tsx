@@ -24,8 +24,11 @@ export function ExportPanel({
 }: ExportPanelProps) {
   const { showToast } = useToastStore();
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'csv'>('whatsapp');
+  const [isUnified, setIsUnified] = useState(false);
 
-  const reportText = generateWhatsAppReport(expenses, filter, metrics);
+  const reportText = generateWhatsAppReport(expenses, filter, metrics, {
+    unified: isUnified,
+  });
 
   const handleCopyWhatsApp = async () => {
     try {
@@ -44,7 +47,7 @@ export function ExportPanel({
   };
 
   const handleDownloadCSV = () => {
-    downloadExpensesCSV(expenses, filter);
+    downloadExpensesCSV(expenses, filter, { unified: isUnified });
     showToast(STRINGS.TOAST_CSV_DOWNLOADED, 'success');
   };
 
@@ -58,6 +61,33 @@ export function ExportPanel({
         <p className="text-xs text-slate-500">
           {STRINGS.EXPORT_SUBTITLE}
         </p>
+
+        {/* Toggle para Rendición Unificada (para padres) */}
+        <div className="flex items-center justify-between p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl">
+          <div className="flex flex-col pr-3">
+            <span className="text-xs font-bold text-slate-800">
+              {STRINGS.EXPORT_UNIFY_LABEL}
+            </span>
+            <span className="text-[11px] text-slate-500 leading-snug mt-0.5">
+              {STRINGS.EXPORT_UNIFY_DESC}
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isUnified}
+            onClick={() => setIsUnified(!isUnified)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+              isUnified ? 'bg-indigo-600' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                isUnified ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
 
         {/* Selector de Pestañas */}
         <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
@@ -118,10 +148,14 @@ export function ExportPanel({
           <div className="flex flex-col gap-3">
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-2 text-xs text-slate-600">
               <span className="font-semibold text-slate-800">
-                Formato estándar con codificación UTF-8 BOM
+                {isUnified
+                  ? 'Formato unificado con codificación UTF-8 BOM'
+                  : 'Formato estándar con codificación UTF-8 BOM'}
               </span>
               <p>
-                Este archivo incluye todas las columnas (Fecha, Tipo, Monto, Categoría, Detalle y Estado de Transferencia) preparadas para abrir directamente en Microsoft Excel o Google Sheets sin errores de caracteres.
+                {isUnified
+                  ? STRINGS.EXPORT_CSV_UNIFIED_DESC
+                  : 'Este archivo incluye todas las columnas (Fecha, Tipo, Monto, Categoría, Detalle y Estado de Transferencia) preparadas para abrir directamente en Microsoft Excel o Google Sheets sin errores de caracteres.'}
               </p>
               <span className="font-semibold text-indigo-700">
                 Total de filas a exportar: {expenses.length}

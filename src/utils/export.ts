@@ -24,21 +24,53 @@ function getPeriodLabel(filter: PeriodFilterState): string {
   return 'Historial Completo';
 }
 
+export interface ExportOptions {
+  unified?: boolean;
+}
+
 export function generateWhatsAppReport(
   expenses: Expense[],
   filter: PeriodFilterState,
-  metrics: FinancialMetrics
+  metrics: FinancialMetrics,
+  options?: ExportOptions
 ): string {
+  const unified = options?.unified ?? false;
   const filtered = expenses.filter((e) => isWithinPeriod(e.date, filter));
-
-  const realExpenses = filtered.filter((e) => e.type === 'real');
-  const delayedExpenses = filtered.filter((e) => e.type === 'delayed');
 
   const lines: string[] = [];
 
   lines.push(STRINGS.EXPORT_WHATSAPP_HEADER);
   lines.push(`${STRINGS.EXPORT_WHATSAPP_PERIOD} ${getPeriodLabel(filter)}`);
   lines.push('');
+
+  if (unified) {
+    // Modo Unificado: todos los gastos listados sin distinguir si fueron delayeados
+    lines.push(STRINGS.EXPORT_WHATSAPP_UNIFIED_SECTION);
+    if (filtered.length === 0) {
+      lines.push('_(Sin gastos registrados en el período)_');
+    } else {
+      const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+      for (const exp of sorted) {
+        const cat = getCategoryById(exp.categoryId);
+        lines.push(
+          `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(exp.amount)} [${cat.name}]`
+        );
+      }
+    }
+    lines.push('');
+
+    // Resumen Financiero Unificado
+    lines.push(STRINGS.EXPORT_WHATSAPP_SUMMARY_SECTION);
+    lines.push(`${STRINGS.EXPORT_WHATSAPP_UNIFIED_TOTAL} ${formatCurrency(metrics.totalAccounted)}`);
+    lines.push('');
+    lines.push(STRINGS.EXPORT_WHATSAPP_FOOTER);
+
+    return lines.join('\n');
+  }
+
+  // Modo Detallado: distingue gastos reales de compras delayeadas
+  const realExpenses = filtered.filter((e) => e.type === 'real');
+  const delayedExpenses = filtered.filter((e) => e.type === 'delayed');
 
   // Sección de Gastos Reales
   lines.push(STRINGS.EXPORT_WHATSAPP_REAL_SECTION);
@@ -83,19 +115,23 @@ export function generateWhatsAppReport(
 
 export function downloadExpensesCSV(
   expenses: Expense[],
-  filter: PeriodFilterState
+  filter: PeriodFilterState,
+  options?: ExportOptions
 ): void {
+  const unified = options?.unified ?? false;
   const filtered = expenses.filter((e) => isWithinPeriod(e.date, filter));
 
-  const headers = [
-    'Fecha',
-    'Tipo',
-    'Monto',
-    'Categoría',
-    'Concepto / Detalle',
-    'Estado de Transferencia',
-    'Fecha de Transferencia',
-  ];
+  const headers = unified
+    ? ['Fecha', 'Monto', 'Categoría', 'Concepto / Detalle']
+    : [
+        'Fecha',
+        'Tipo',
+        'Monto',
+        'Categoría',
+        'Concepto / Detalle',
+        'Estado de Transferencia',
+        'Fecha de Transferencia',
+      ];
 
   const escapeCSV = (field: string | number) => {
     const str = String(field);
@@ -105,8 +141,22 @@ export function downloadExpensesCSV(
     return str;
   };
 
-  const rows = filtered.map((exp) => {
+  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+
+  const rows = sorted.map((exp) => {
     const cat = getCategoryById(exp.categoryId);
+
+    if (unified) {
+      return [
+        exp.date,
+        exp.amount.toFixed(2),
+        cat.name,
+        exp.description,
+      ]
+        .map((item) => escapeCSV(item ?? ''))
+        .join(',');
+    }
+
     const tipo = exp.type === 'real' ? 'Gasto Real' : 'Compra Delayeada';
     let transferStatus = 'No aplica';
     if (exp.type === 'delayed') {
@@ -135,8 +185,9 @@ export function downloadExpensesCSV(
   const link = document.createElement('a');
 
   const timestamp = new Date().toISOString().split('T')[0];
+  const filenameSuffix = unified ? 'unificado' : 'detallado';
   link.setAttribute('href', url);
-  link.setAttribute('download', `delayspend_rendicion_${filter.type}_${timestamp}.csv`);
+  link.setAttribute('download', `delayspend_rendicion_${filter.type}_${filenameSuffix}_${timestamp}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
