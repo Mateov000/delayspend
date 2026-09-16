@@ -144,73 +144,15 @@ export function ExpenseForm({
         </div>
       </div>
 
-      {/* 3. Selector de Categorías (Cuadrícula táctil) */}
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          {STRINGS.FORM_CATEGORY_LABEL}
-        </label>
-        <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1">
-          {CATEGORIES.map((cat) => {
-            const isSelected = categoryId === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setCategoryId(cat.id)}
-                className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all cursor-pointer text-center ${
-                  isSelected
-                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400 ring-offset-1'
-                    : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'
-                }`}
-              >
-                <CategoryIcon name={cat.icon} className="w-5 h-5" />
-                <span className="text-[10px] font-medium leading-tight line-clamp-1">
-                  {cat.name.split('&')[0]?.trim()}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 4. Campo de Detalle / Concepto */}
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="expense-desc" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          {STRINGS.FORM_DESCRIPTION_LABEL}
-        </label>
-        <input
-          id="expense-desc"
-          type="text"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder={STRINGS.FORM_DESCRIPTION_PLACEHOLDER}
-          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-        />
-      </div>
-
-      {/* 5. Selector de Fecha */}
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="expense-date" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          {STRINGS.FORM_DATE_LABEL}
-        </label>
-        <input
-          id="expense-date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-        />
-      </div>
-
-      {/* 6. Opción más barata / Ahorro extra DelaySpend */}
-      {type === 'real' && (
-        <div className="flex flex-col gap-3 p-3.5 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl transition-all">
+      {/* 3. Opción más barata / Ahorro extra DelaySpend (Inmediatamente visible bajo el monto) */}
+      {type === 'real' ? (
+        <div className="flex flex-col gap-3 p-3.5 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl transition-all shadow-2xs">
           <div
             className="flex items-center justify-between cursor-pointer"
             onClick={() => setHasCheaperOption(!hasCheaperOption)}
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-300/80 text-emerald-700 flex items-center justify-center shrink-0">
                 <PiggyBank className="w-4 h-4" />
               </div>
               <div className="flex flex-col">
@@ -256,7 +198,7 @@ export function ExpenseForm({
                   id="cheaper-savings"
                   type="text"
                   inputMode="decimal"
-                  placeholder="2.500"
+                  placeholder="Ej: 2.500"
                   value={cheaperSavingsStr}
                   onChange={(e) => {
                     const val = e.target.value.replace(/[^0-9.,]/g, '');
@@ -271,7 +213,74 @@ export function ExpenseForm({
             </div>
           )}
         </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setType('real')}
+          className="flex items-center gap-2.5 p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl text-[11px] text-slate-500 cursor-pointer text-left transition-colors"
+        >
+          <PiggyBank className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>¿Elegiste una opción más económica? <strong className="text-rose-600 underline">Cambiá a Gasto Real</strong> para registrar el sobreprecio que te ahorraste.</span>
+        </button>
       )}
+
+      {/* 4. Selector de Categorías (Cuadrícula táctil) */}
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          {STRINGS.FORM_CATEGORY_LABEL}
+        </label>
+        <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1">
+          {CATEGORIES.map((cat) => {
+            const isSelected = categoryId === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setCategoryId(cat.id)}
+                className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all cursor-pointer text-center ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400 ring-offset-1'
+                    : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'
+                }`}
+              >
+                <CategoryIcon name={cat.icon} className="w-5 h-5" />
+                <span className="text-[10px] font-medium leading-tight line-clamp-1">
+                  {cat.name.split('&')[0]?.trim()}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 5. Campo de Detalle / Concepto */}
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="expense-desc" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          {STRINGS.FORM_DESCRIPTION_LABEL}
+        </label>
+        <input
+          id="expense-desc"
+          type="text"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={STRINGS.FORM_DESCRIPTION_PLACEHOLDER}
+          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+        />
+      </div>
+
+      {/* 6. Selector de Fecha */}
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="expense-date" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          {STRINGS.FORM_DATE_LABEL}
+        </label>
+        <input
+          id="expense-date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+        />
+      </div>
 
       {/* 7. Botones de Acción */}
       <div className="flex flex-col gap-2 pt-2">

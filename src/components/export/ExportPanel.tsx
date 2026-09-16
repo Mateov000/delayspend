@@ -26,7 +26,7 @@ export function ExportPanel({
 }: ExportPanelProps) {
   const { showToast } = useToastStore();
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'csv'>('whatsapp');
-  const [isUnified, setIsUnified] = useState(false);
+  const [isUnified, setIsUnified] = useState(true);
 
   const reportText = generateWhatsAppReport(expenses, filter, metrics, {
     unified: isUnified,
@@ -50,8 +50,6 @@ export function ExportPanel({
   };
 
   const handleDownloadCSV = () => {
-    downloadExpensesCSV(expenses, filter);
-    downloadExpensesCSV(expenses, filter, { unified: isUnified });
     downloadExpensesCSV(expenses, filter, {
       unified: isUnified,
       period,

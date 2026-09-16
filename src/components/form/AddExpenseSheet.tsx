@@ -57,7 +57,7 @@ export function AddExpenseSheet({
       }
     : defaultDate || defaultPeriodId
     ? {
-        type: 'delayed',
+        type: 'real',
         amount: 0,
         description: '',
         categoryId: 'food',

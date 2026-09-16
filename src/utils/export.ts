@@ -34,6 +34,61 @@ export interface ExportOptions {
   period?: Period | null;
 }
 
+export interface UnifiedReportItem {
+  id: string;
+  date: string;
+  amount: number;
+  categoryId: Expense['categoryId'];
+  description: string;
+}
+
+/**
+ * Genera la lista para el reporte de padres (modo unificado):
+ * Para los gastos donde se eligió una opción más barata, suma el gasto real + el delayeado ahorrado
+ * de modo que aparezca simplemente como un único gasto con el valor total (contando gasto y delay).
+ * Los registros complementarios de delay generados automáticamente se omiten para evitar duplicación.
+ */
+export function getUnifiedExpensesForReport(expenses: Expense[]): UnifiedReportItem[] {
+  const companionIds = new Set<string>();
+  for (const exp of expenses) {
+    if (exp.linkedExpenseId) {
+      companionIds.add(exp.id);
+    }
+  }
+
+  const items: UnifiedReportItem[] = [];
+
+  for (const exp of expenses) {
+    // Si es un registro complementario vinculado a un gasto real, se omite
+    if (companionIds.has(exp.id)) {
+      continue;
+    }
+
+    if (exp.type === 'real') {
+      // Contar gasto real y delay: exp.amount + (exp.savedExtraAmount || 0)
+      const totalAmount = exp.amount + (exp.savedExtraAmount || 0);
+      items.push({
+        id: exp.id,
+        date: exp.date,
+        amount: Math.round(totalAmount * 100) / 100,
+        categoryId: exp.categoryId,
+        description: exp.description,
+      });
+    } else {
+      // Compra delayeada regular (standalone)
+      items.push({
+        id: exp.id,
+        date: exp.date,
+        amount: exp.amount,
+        categoryId: exp.categoryId,
+        description: exp.description,
+      });
+    }
+  }
+
+  return items.sort((a, b) => b.date.localeCompare(a.date));
+}
+
 export function generateWhatsAppReport(
   expenses: Expense[],
   filter: PeriodFilterState,
@@ -51,13 +106,16 @@ export function generateWhatsAppReport(
   lines.push('');
 
   if (unified) {
-    // Modo Unificado: todos los gastos listados sin distinguir si fueron delayeados
+    // Modo Unificado (Reporte para padres):
+    // Aparece simplemente como un gasto más (contando gasto y delay)
     lines.push(STRINGS.EXPORT_WHATSAPP_UNIFIED_SECTION);
-    if (filtered.length === 0) {
+
+    const unifiedList = getUnifiedExpensesForReport(filtered);
+
+    if (unifiedList.length === 0) {
       lines.push('_(Sin gastos registrados en el período)_');
     } else {
-      const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
-      for (const exp of sorted) {
+      for (const exp of unifiedList) {
         const cat = getCategoryById(exp.categoryId);
         lines.push(
           `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(exp.amount)} [${cat.name}]`
@@ -141,6 +199,14 @@ export function downloadExpensesCSV(
   const period = options?.period ?? null;
   const filtered = expenses.filter((e) => isExpenseMatchingFilter(e, filter, period));
 
+  const escapeCSV = (field: string | number) => {
+    const str = String(field);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const headers = unified
     ? ['Fecha', 'Monto', 'Categoría', 'Concepto / Detalle']
     : [
@@ -153,20 +219,14 @@ export function downloadExpensesCSV(
         'Fecha de Transferencia',
       ];
 
-  const escapeCSV = (field: string | number) => {
-    const str = String(field);
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
+  let rows: string[] = [];
 
-  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
-
-  const rows = sorted.map((exp) => {
-    const cat = getCategoryById(exp.categoryId);
-
-    if (unified) {
+  if (unified) {
+    // Modo Unificado (Reporte para padres):
+    // Aparece simplemente como un gasto más (contando gasto y delay)
+    const unifiedList = getUnifiedExpensesForReport(filtered);
+    rows = unifiedList.map((exp) => {
+      const cat = getCategoryById(exp.categoryId);
       return [
         exp.date,
         exp.amount.toFixed(2),
@@ -175,26 +235,30 @@ export function downloadExpensesCSV(
       ]
         .map((item) => escapeCSV(item ?? ''))
         .join(',');
-    }
+    });
+  } else {
+    const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+    rows = sorted.map((exp) => {
+      const cat = getCategoryById(exp.categoryId);
+      const tipo = exp.type === 'real' ? 'Gasto Real' : 'Compra Delayeada';
+      let transferStatus = 'No aplica';
+      if (exp.type === 'delayed') {
+        transferStatus = exp.transferredAt ? 'Transferido' : 'Pendiente de transferir';
+      }
 
-    const tipo = exp.type === 'real' ? 'Gasto Real' : 'Compra Delayeada';
-    let transferStatus = 'No aplica';
-    if (exp.type === 'delayed') {
-      transferStatus = exp.transferredAt ? 'Transferido' : 'Pendiente de transferir';
-    }
-
-    return [
-      exp.date,
-      tipo,
-      exp.amount.toFixed(2),
-      cat.name,
-      exp.description,
-      transferStatus,
-      exp.transferredAt ? exp.transferredAt.split('T')[0] : '',
-    ]
-      .map((item) => escapeCSV(item ?? ''))
-      .join(',');
-  });
+      return [
+        exp.date,
+        tipo,
+        exp.amount.toFixed(2),
+        cat.name,
+        exp.description,
+        transferStatus,
+        exp.transferredAt ? exp.transferredAt.split('T')[0] : '',
+      ]
+        .map((item) => escapeCSV(item ?? ''))
+        .join(',');
+    });
+  }
 
   // UTF-8 BOM obligatorio para compatibilidad total con Microsoft Excel en Windows
   const bom = '\uFEFF';
