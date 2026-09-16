@@ -1,5 +1,7 @@
 export type ExpenseType = 'real' | 'delayed' | 'income';
 
+export type ExpenseNature = 'daily' | 'fixed' | 'eventual';
+
 export type BuiltInCategoryId =
   | 'food'
   | 'supermarket'
@@ -42,7 +44,8 @@ export interface Expense {
   installmentGroupId?: string | null; // UUID compartido por todas las cuotas del mismo grupo
   installmentNumber?: number | null; // Número de cuota (1, 2, 3...)
   installmentTotal?: number | null; // Total de cuotas del grupo
-  isRecurring?: boolean; // Marca si es un gasto recurrente o fijo (ej: alquiler, suscripción, expensas)
+  isRecurring?: boolean; // Legacy / compatibilidad
+  nature?: ExpenseNature; // 'daily': cotidiano | 'fixed': fijo o recurrente | 'eventual': ocasional/esporádico
 }
 
 export interface Period {
@@ -93,5 +96,6 @@ export interface ExpenseInput {
   installmentGroupId?: string | null;
   installmentNumber?: number | null;
   installmentTotal?: number | null;
-  isRecurring?: boolean; // Marca si es un gasto recurrente o fijo (ej: alquiler, suscripción, expensas)
+  isRecurring?: boolean;
+  nature?: ExpenseNature;
 }

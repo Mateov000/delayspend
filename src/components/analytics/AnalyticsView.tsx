@@ -4,9 +4,10 @@ import { HistoricalSavingsCard } from './HistoricalSavingsCard';
 import { CategoryDonutChart } from './CategoryDonutChart';
 import { PeriodBarChart } from './PeriodBarChart';
 import { BudgetGoalsCard } from './BudgetGoalsCard';
+import { ExpenseNatureCard } from './ExpenseNatureCard';
 import { calculateHistoricalSavings } from '../../utils/historicalSavings';
 import { isExpenseMatchingFilter } from '../../utils/date';
-import { PiggyBank, PieChart, BarChart2, Target } from 'lucide-react';
+import { PiggyBank, PieChart, BarChart2, Target, Layers } from 'lucide-react';
 
 interface AnalyticsViewProps {
   expenses: Expense[];
@@ -69,6 +70,18 @@ export function AnalyticsView({
         />
         <div className="mt-3 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
           <CategoryDonutChart expenses={filteredExpenses} />
+        </div>
+      </section>
+
+      {/* Sección 4: Auditoría por Naturaleza de Gasto */}
+      <section aria-label="Composición por naturaleza de gasto">
+        <SectionHeader
+          icon={<Layers className="w-4 h-4" />}
+          title="Naturaleza de Gasto"
+          subtitle="Cotidianos vs Fijos vs Eventuales"
+        />
+        <div className="mt-3">
+          <ExpenseNatureCard expenses={filteredExpenses} />
         </div>
       </section>
 

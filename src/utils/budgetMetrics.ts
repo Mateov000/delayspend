@@ -39,6 +39,9 @@ export interface WeeklySpendingMetrics {
 
 export interface PeriodGoalMetrics {
   spent: number;
+  spentDaily: number;
+  spentFixed: number;
+  spentEventual: number;
   delayed: number;
   totalAccounted: number;
   income: number;
@@ -50,6 +53,7 @@ export interface PeriodGoalMetrics {
   delayedPercentage: number;
   isOver: boolean;
   isWarning: boolean;
+  dailyPaceAverage: number;
   dailySpentAverage: number;
   dailyTotalAverage: number;
   daysActive: number;
@@ -226,12 +230,24 @@ export function calculatePeriodGoalProgress(
   });
 
   let spent = 0;
+  let spentDaily = 0;
+  let spentFixed = 0;
+  let spentEventual = 0;
   let delayed = 0;
   let extraIncome = 0;
 
   for (const e of periodExpenses) {
     if (e.type === 'real') {
       spent += e.amount;
+      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
+      if (nature === 'fixed') {
+        spentFixed += e.amount;
+      } else if (nature === 'eventual') {
+        spentEventual += e.amount;
+      } else {
+        spentDaily += e.amount;
+      }
+
       if (e.savedExtraAmount && e.savedExtraAmount > 0) {
         delayed += e.savedExtraAmount;
       }
@@ -258,11 +274,15 @@ export function calculatePeriodGoalProgress(
   const current = period.endDate ? new Date(`${period.endDate}T00:00:00`) : now;
   const diffTime = Math.max(0, current.getTime() - start.getTime());
   const daysActive = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+  const dailyPaceAverage = spentDaily / daysActive;
   const dailySpentAverage = spent / daysActive;
   const dailyTotalAverage = totalAccounted / daysActive;
 
   return {
     spent,
+    spentDaily,
+    spentFixed,
+    spentEventual,
     delayed,
     totalAccounted,
     income,
@@ -274,6 +294,7 @@ export function calculatePeriodGoalProgress(
     delayedPercentage,
     isOver,
     isWarning,
+    dailyPaceAverage,
     dailySpentAverage,
     dailyTotalAverage,
     daysActive,

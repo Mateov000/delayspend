@@ -318,17 +318,19 @@ export function BudgetGoalsCard({
               </span>
             </div>
 
-            {/* Promedio diario doble: real vs real + delayspend */}
-            <div className="flex items-center justify-between text-[10px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100">
-              <span className="font-semibold text-slate-600">Ritmo diario:</span>
-              <div className="flex items-center gap-2">
-                <span>
-                  Real: <strong className="text-slate-800">{formatCurrency(periodGoal.dailySpentAverage)}/dia</strong>
+            {/* Ritmo diario: Cotidiano (puro) vs Global y con Delay */}
+            <div className="flex flex-col gap-1 text-[10px] text-slate-500 bg-slate-50 px-2.5 py-2 rounded-xl border border-slate-100">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-700 flex items-center gap-1">
+                  🛒 Ritmo cotidiano:
                 </span>
-                <span className="text-slate-300">·</span>
-                <span>
-                  c/Delay: <strong className="text-emerald-700">{formatCurrency(periodGoal.dailyTotalAverage)}/dia</strong>
+                <span className="font-bold text-slate-900 text-xs">
+                  {formatCurrency(periodGoal.dailyPaceAverage)} / día
                 </span>
+              </div>
+              <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-slate-200/50">
+                <span>Promedio global: {formatCurrency(periodGoal.dailySpentAverage)}/d</span>
+                <span>c/Delay: {formatCurrency(periodGoal.dailyTotalAverage)}/d</span>
               </div>
             </div>
           </div>

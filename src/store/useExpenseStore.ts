@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { Expense, ExpenseInput, ExpenseType, CategoryId } from './types';
+import { Expense, ExpenseInput, ExpenseType, ExpenseNature, CategoryId } from './types';
 import { generateId } from '../utils/id';
 import { generateFutureInstallments } from '../utils/installments';
 
@@ -72,7 +72,19 @@ function sanitizeExpense(raw: unknown): Expense | null {
     typeof item.installmentNumber === 'number' ? item.installmentNumber : null;
   const installmentTotal =
     typeof item.installmentTotal === 'number' ? item.installmentTotal : null;
-  const isRecurring = typeof item.isRecurring === 'boolean' ? item.isRecurring : undefined;
+
+  const rawNature = item.nature;
+  let nature: ExpenseNature | undefined = undefined;
+  if (item.type === 'real') {
+    if (rawNature === 'daily' || rawNature === 'fixed' || rawNature === 'eventual') {
+      nature = rawNature;
+    } else if (item.isRecurring) {
+      nature = 'fixed';
+    } else {
+      nature = 'daily';
+    }
+  }
+  const isRecurring = item.type === 'real' ? (nature === 'fixed' || Boolean(item.isRecurring)) : undefined;
 
   return {
     id: item.id,
@@ -91,6 +103,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
     installmentNumber,
     installmentTotal,
     isRecurring,
+    nature,
   };
 }
 
@@ -132,7 +145,8 @@ export const useExpenseStore = create<ExpenseState>()(
           installmentGroupId: input.type === 'real' ? installmentGroupId : null,
           installmentNumber: hasInstallments ? (input.installmentNumber ?? 1) : null,
           installmentTotal: hasInstallments ? input.installmentTotal : null,
-          isRecurring: input.type === 'real' && input.isRecurring ? true : undefined,
+          isRecurring: input.type === 'real' && (input.nature === 'fixed' || input.isRecurring) ? true : undefined,
+          nature: input.type === 'real' ? (input.nature ?? (input.isRecurring ? 'fixed' : 'daily')) : undefined,
         };
 
         // Generar cuotas futuras (delayed) si es un pago en cuotas
@@ -211,9 +225,20 @@ export const useExpenseStore = create<ExpenseState>()(
               updatedType === 'real'
                 ? (input.installmentTotal !== undefined ? input.installmentTotal : expense.installmentTotal)
                 : null;
+            let updatedNature: ExpenseNature | undefined = expense.nature;
+            if (updatedType === 'real') {
+              if ('nature' in input) {
+                updatedNature = input.nature;
+              } else if ('isRecurring' in input) {
+                updatedNature = input.isRecurring ? 'fixed' : 'daily';
+              }
+            } else {
+              updatedNature = undefined;
+            }
+
             const updatedIsRecurring =
               updatedType === 'real'
-                ? ('isRecurring' in input ? (input.isRecurring ? true : undefined) : expense.isRecurring)
+                ? (updatedNature === 'fixed' || ('isRecurring' in input ? Boolean(input.isRecurring) : expense.isRecurring) ? true : undefined)
                 : undefined;
 
             updatedItem = {
@@ -234,6 +259,7 @@ export const useExpenseStore = create<ExpenseState>()(
               installmentNumber: updatedInstallmentNumber,
               installmentTotal: updatedInstallmentTotal,
               isRecurring: updatedIsRecurring,
+              nature: updatedNature,
               updatedAt: now,
             };
 

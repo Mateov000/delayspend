@@ -1,5 +1,5 @@
 import { useState, FormEvent, ChangeEvent } from 'react';
-import { ExpenseInput, ExpenseType, CategoryId } from '../../store/types';
+import { ExpenseInput, ExpenseType, ExpenseNature, CategoryId } from '../../store/types';
 import { useCategoryStore, getAllCategories } from '../../store/useCategoryStore';
 import { STRINGS } from '../../constants/strings';
 import { useToastStore } from '../../store/useToastStore';
@@ -21,6 +21,8 @@ import {
   ChevronUp,
   AlertTriangle,
   RefreshCw,
+  Zap,
+  ShoppingBag,
 } from 'lucide-react';
 
 interface ExpenseFormProps {
@@ -72,10 +74,10 @@ export function ExpenseForm({
     Boolean(initialValues?.installmentTotal && initialValues.installmentTotal > 1)
   );
 
-  // Gasto fijo o recurrente (solo en gastos reales)
-  const [isRecurring, setIsRecurring] = useState<boolean>(
-    Boolean(initialValues?.isRecurring)
-  );
+  // Naturaleza del gasto (solo en gastos reales: cotidiano, fijo o eventual)
+  const initialNature: ExpenseNature =
+    initialValues?.nature ?? (initialValues?.isRecurring ? 'fixed' : 'daily');
+  const [nature, setNature] = useState<ExpenseNature>(initialNature);
   const [installmentCount, setInstallmentCount] = useState<number>(
     initialValues?.installmentTotal ?? 2
   );
@@ -141,7 +143,8 @@ export function ExpenseForm({
       installmentGroupId: type === 'real' && hasInstallments ? (initialValues?.installmentGroupId ?? null) : null,
       installmentNumber: type === 'real' && hasInstallments ? (initialValues?.installmentNumber ?? 1) : null,
       installmentTotal: type === 'real' && hasInstallments ? installmentCount : null,
-      isRecurring: type === 'real' && isRecurring ? true : undefined,
+      isRecurring: type === 'real' && nature === 'fixed' ? true : undefined,
+      nature: type === 'real' ? nature : undefined,
     });
   };
 
@@ -491,38 +494,69 @@ export function ExpenseForm({
         </div>
       )}
 
-      {/* Gasto Fijo / Recurrente (solo en gastos reales) */}
+      {/* Selector de Naturaleza de Gasto: Cotidiano / Fijo / Eventual (solo en gastos reales) */}
       {type === 'real' && (
-        <div className="flex items-center justify-between p-3 bg-indigo-50/50 border border-indigo-200/60 rounded-2xl">
-          <div
-            onClick={() => setIsRecurring(!isRecurring)}
-            className="flex items-center gap-2.5 cursor-pointer flex-1"
-          >
-            <div className="w-8 h-8 rounded-xl bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0">
-              <RefreshCw className="w-4 h-4" />
-            </div>
-            <div className="flex flex-col text-left">
-              <span className="text-xs font-bold text-slate-800">Gasto Fijo / Recurrente</span>
-              <span className="text-[10px] text-slate-500 font-medium">
-                Alquiler, expensas, suscripción mensual o servicios
-              </span>
-            </div>
+        <div className="flex flex-col gap-2 p-3 bg-slate-50/80 border border-slate-200/80 rounded-2xl">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              Naturaleza del Gasto
+            </label>
+            <span className="text-[10px] text-slate-500 font-medium">
+              {nature === 'daily' && 'Impacta en el ritmo de consumo diario'}
+              {nature === 'fixed' && 'No afecta ritmo diario · Compromiso mensual'}
+              {nature === 'eventual' && 'Gasto esporádico/necesario · Aislado de ritmo'}
+            </span>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isRecurring}
-            onClick={() => setIsRecurring(!isRecurring)}
-            className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-              isRecurring ? 'bg-indigo-600' : 'bg-slate-300'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                isRecurring ? 'translate-x-5' : 'translate-x-0'
+
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setNature('daily')}
+              className={`flex flex-col items-center justify-center p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                nature === 'daily'
+                  ? 'bg-white text-emerald-700 border-emerald-300 shadow-xs ring-2 ring-emerald-400/20'
+                  : 'bg-slate-100/70 text-slate-600 border-slate-200 hover:bg-slate-200/50'
               }`}
-            />
-          </button>
+            >
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Cotidiano</span>
+              </div>
+              <span className="text-[9px] font-normal text-slate-600 leading-tight">Super, salidas, comida</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setNature('fixed')}
+              className={`flex flex-col items-center justify-center p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                nature === 'fixed'
+                  ? 'bg-white text-indigo-700 border-indigo-300 shadow-xs ring-2 ring-indigo-400/20'
+                  : 'bg-slate-100/70 text-slate-600 border-slate-200 hover:bg-slate-200/50'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <RefreshCw className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Fijo</span>
+              </div>
+              <span className="text-[9px] font-normal text-slate-600 leading-tight">Alquiler, servicios</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setNature('eventual')}
+              className={`flex flex-col items-center justify-center p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                nature === 'eventual'
+                  ? 'bg-white text-amber-700 border-amber-300 shadow-xs ring-2 ring-amber-400/20'
+                  : 'bg-slate-100/70 text-slate-600 border-slate-200 hover:bg-slate-200/50'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Zap className="w-3.5 h-3.5 text-amber-600" />
+                <span>Eventual</span>
+              </div>
+              <span className="text-[9px] font-normal text-slate-600 leading-tight">Peluquería, salud, etc</span>
+            </button>
+          </div>
         </div>
       )}
 
