@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ExpenseFormProps {
@@ -67,6 +68,11 @@ export function ExpenseForm({
   // Cuotas (solo en real)
   const [hasInstallments, setHasInstallments] = useState<boolean>(
     Boolean(initialValues?.installmentTotal && initialValues.installmentTotal > 1)
+  );
+
+  // Gasto fijo o recurrente (solo en gastos reales)
+  const [isRecurring, setIsRecurring] = useState<boolean>(
+    Boolean(initialValues?.isRecurring)
   );
   const [installmentCount, setInstallmentCount] = useState<number>(
     initialValues?.installmentTotal ?? 2
@@ -133,6 +139,7 @@ export function ExpenseForm({
       installmentGroupId: type === 'real' && hasInstallments ? (initialValues?.installmentGroupId ?? null) : null,
       installmentNumber: type === 'real' && hasInstallments ? (initialValues?.installmentNumber ?? 1) : null,
       installmentTotal: type === 'real' && hasInstallments ? installmentCount : null,
+      isRecurring: type === 'real' && isRecurring ? true : undefined,
     });
   };
 
@@ -479,6 +486,41 @@ export function ExpenseForm({
               · Se crearán {installmentCount - 1} cuota{installmentCount - 1 !== 1 ? 's' : ''} futura{installmentCount - 1 !== 1 ? 's' : ''} como Delayeadas.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Gasto Fijo / Recurrente (solo en gastos reales) */}
+      {type === 'real' && (
+        <div className="flex items-center justify-between p-3 bg-indigo-50/50 border border-indigo-200/60 rounded-2xl">
+          <div
+            onClick={() => setIsRecurring(!isRecurring)}
+            className="flex items-center gap-2.5 cursor-pointer flex-1"
+          >
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0">
+              <RefreshCw className="w-4 h-4" />
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="text-xs font-bold text-slate-800">Gasto Fijo / Recurrente</span>
+              <span className="text-[10px] text-slate-500 font-medium">
+                Alquiler, expensas, suscripción mensual o servicios
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isRecurring}
+            onClick={() => setIsRecurring(!isRecurring)}
+            className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              isRecurring ? 'bg-indigo-600' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                isRecurring ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
       )}
 

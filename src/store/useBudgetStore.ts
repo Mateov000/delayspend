@@ -6,7 +6,8 @@ import { generateId } from '../utils/id';
 export interface CategoryBudget {
   id: string;
   categoryId: CategoryId;
-  amount: number;
+  amount: number; // Presupuesto mensual / de ciclo
+  weeklyAmount?: number; // Meta semanal por categoría
   createdAt: string;
   updatedAt: string;
 }
@@ -14,12 +15,18 @@ export interface CategoryBudget {
 export interface BudgetState {
   budgets: CategoryBudget[];
   weeklyLimit: number | null;
-  /** Establece (crea o reemplaza) el presupuesto de una categoría. amount=0 lo elimina. */
+  /** Establece (crea o reemplaza) el presupuesto de ciclo de una categoría. amount=0 lo elimina. */
   setBudget: (categoryId: CategoryId, amount: number) => void;
-  /** Elimina el presupuesto de una categoría */
+  /** Elimina el presupuesto de ciclo de una categoría */
   removeBudget: (categoryId: CategoryId) => void;
-  /** Devuelve el límite de presupuesto para una categoría (0 = sin límite) */
+  /** Devuelve el límite de ciclo para una categoría (0 = sin límite) */
   getBudgetForCategory: (categoryId: CategoryId) => number;
+  /** Establece (crea o reemplaza) la meta semanal de una categoría. amount=0 la elimina. */
+  setWeeklyBudget: (categoryId: CategoryId, amount: number) => void;
+  /** Elimina la meta semanal de una categoría */
+  removeWeeklyBudget: (categoryId: CategoryId) => void;
+  /** Devuelve la meta semanal para una categoría (0 = sin límite) */
+  getWeeklyBudgetForCategory: (categoryId: CategoryId) => number;
   /** Configura o remueve el límite de gasto semanal global */
   setWeeklyLimit: (amount: number | null) => void;
 }
@@ -32,22 +39,30 @@ export const useBudgetStore = create<BudgetState>()(
 
       setBudget: (categoryId, amount) => {
         const now = new Date().toISOString();
+        const safeAmount = Math.max(0, Math.round(amount * 100) / 100);
         set((state) => {
           const existing = state.budgets.find((b) => b.categoryId === categoryId);
-          if (amount <= 0) {
+          if (safeAmount <= 0) {
+            if (existing && existing.weeklyAmount && existing.weeklyAmount > 0) {
+              return {
+                budgets: state.budgets.map((b) =>
+                  b.categoryId === categoryId ? { ...b, amount: 0, updatedAt: now } : b
+                ),
+              };
+            }
             return { budgets: state.budgets.filter((b) => b.categoryId !== categoryId) };
           }
           if (existing) {
             return {
               budgets: state.budgets.map((b) =>
-                b.categoryId === categoryId ? { ...b, amount, updatedAt: now } : b
+                b.categoryId === categoryId ? { ...b, amount: safeAmount, updatedAt: now } : b
               ),
             };
           }
           const newBudget: CategoryBudget = {
             id: generateId(),
             categoryId,
-            amount,
+            amount: safeAmount,
             createdAt: now,
             updatedAt: now,
           };
@@ -56,14 +71,81 @@ export const useBudgetStore = create<BudgetState>()(
       },
 
       removeBudget: (categoryId) => {
-        set((state) => ({
-          budgets: state.budgets.filter((b) => b.categoryId !== categoryId),
-        }));
+        const now = new Date().toISOString();
+        set((state) => {
+          const existing = state.budgets.find((b) => b.categoryId === categoryId);
+          if (existing && existing.weeklyAmount && existing.weeklyAmount > 0) {
+            return {
+              budgets: state.budgets.map((b) =>
+                b.categoryId === categoryId ? { ...b, amount: 0, updatedAt: now } : b
+              ),
+            };
+          }
+          return {
+            budgets: state.budgets.filter((b) => b.categoryId !== categoryId),
+          };
+        });
       },
 
       getBudgetForCategory: (categoryId) => {
         const b = get().budgets.find((b) => b.categoryId === categoryId);
         return b ? b.amount : 0;
+      },
+
+      setWeeklyBudget: (categoryId, amount) => {
+        const now = new Date().toISOString();
+        const safeAmount = Math.max(0, Math.round(amount * 100) / 100);
+        set((state) => {
+          const existing = state.budgets.find((b) => b.categoryId === categoryId);
+          if (safeAmount <= 0) {
+            if (existing && existing.amount > 0) {
+              return {
+                budgets: state.budgets.map((b) =>
+                  b.categoryId === categoryId ? { ...b, weeklyAmount: undefined, updatedAt: now } : b
+                ),
+              };
+            }
+            return { budgets: state.budgets.filter((b) => b.categoryId !== categoryId) };
+          }
+          if (existing) {
+            return {
+              budgets: state.budgets.map((b) =>
+                b.categoryId === categoryId ? { ...b, weeklyAmount: safeAmount, updatedAt: now } : b
+              ),
+            };
+          }
+          const newBudget: CategoryBudget = {
+            id: generateId(),
+            categoryId,
+            amount: 0,
+            weeklyAmount: safeAmount,
+            createdAt: now,
+            updatedAt: now,
+          };
+          return { budgets: [...state.budgets, newBudget] };
+        });
+      },
+
+      removeWeeklyBudget: (categoryId) => {
+        const now = new Date().toISOString();
+        set((state) => {
+          const existing = state.budgets.find((b) => b.categoryId === categoryId);
+          if (existing && existing.amount > 0) {
+            return {
+              budgets: state.budgets.map((b) =>
+                b.categoryId === categoryId ? { ...b, weeklyAmount: undefined, updatedAt: now } : b
+              ),
+            };
+          }
+          return {
+            budgets: state.budgets.filter((b) => b.categoryId !== categoryId),
+          };
+        });
+      },
+
+      getWeeklyBudgetForCategory: (categoryId) => {
+        const b = get().budgets.find((b) => b.categoryId === categoryId);
+        return b?.weeklyAmount ?? 0;
       },
 
       setWeeklyLimit: (amount) => {

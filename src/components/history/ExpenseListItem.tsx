@@ -5,7 +5,7 @@ import { STRINGS } from '../../constants/strings';
 import { formatCurrency } from '../../utils/format';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { Badge } from '../ui/Badge';
-import { Tag, MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors, TrendingUp } from 'lucide-react';
+import { Tag, MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors, TrendingUp, RefreshCw } from 'lucide-react';
 
 interface ExpenseListItemProps {
   expense: Expense;
@@ -83,6 +83,14 @@ export function ExpenseListItem({
             {hasInstallments && expense.installmentNumber && expense.installmentTotal && (
               <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200/80 font-bold px-1.5 py-0.5 rounded-md">
                 💳 Cuota {expense.installmentNumber}/{expense.installmentTotal}
+              </span>
+            )}
+
+            {/* Gasto fijo badge */}
+            {expense.isRecurring && (
+              <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200/80 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                <RefreshCw className="w-2.5 h-2.5" />
+                <span>Fijo</span>
               </span>
             )}
 

@@ -72,6 +72,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
     typeof item.installmentNumber === 'number' ? item.installmentNumber : null;
   const installmentTotal =
     typeof item.installmentTotal === 'number' ? item.installmentTotal : null;
+  const isRecurring = typeof item.isRecurring === 'boolean' ? item.isRecurring : undefined;
 
   return {
     id: item.id,
@@ -89,6 +90,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
     installmentGroupId,
     installmentNumber,
     installmentTotal,
+    isRecurring,
   };
 }
 
@@ -130,6 +132,7 @@ export const useExpenseStore = create<ExpenseState>()(
           installmentGroupId: input.type === 'real' ? installmentGroupId : null,
           installmentNumber: hasInstallments ? (input.installmentNumber ?? 1) : null,
           installmentTotal: hasInstallments ? input.installmentTotal : null,
+          isRecurring: input.type === 'real' && input.isRecurring ? true : undefined,
         };
 
         // Generar cuotas futuras (delayed) si es un pago en cuotas
@@ -208,6 +211,10 @@ export const useExpenseStore = create<ExpenseState>()(
               updatedType === 'real'
                 ? (input.installmentTotal !== undefined ? input.installmentTotal : expense.installmentTotal)
                 : null;
+            const updatedIsRecurring =
+              updatedType === 'real'
+                ? ('isRecurring' in input ? (input.isRecurring ? true : undefined) : expense.isRecurring)
+                : undefined;
 
             updatedItem = {
               ...expense,
@@ -226,6 +233,7 @@ export const useExpenseStore = create<ExpenseState>()(
               installmentGroupId: updatedInstallmentGroupId,
               installmentNumber: updatedInstallmentNumber,
               installmentTotal: updatedInstallmentTotal,
+              isRecurring: updatedIsRecurring,
               updatedAt: now,
             };
 

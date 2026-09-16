@@ -35,6 +35,7 @@ interface DbExpenseRow {
   installment_group_id?: string | null;
   installment_number?: number | null;
   installment_total?: number | null;
+  is_recurring?: boolean | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -76,6 +77,7 @@ function mapRowToExpense(row: DbExpenseRow): Expense {
     installmentGroupId: row.installment_group_id ?? null,
     installmentNumber: row.installment_number ?? null,
     installmentTotal: row.installment_total ?? null,
+    isRecurring: row.is_recurring ? true : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -112,6 +114,7 @@ function mapExpenseToRow(expense: Expense, userId: string): Omit<DbExpenseRow, '
     installment_group_id: expense.installmentGroupId ?? null,
     installment_number: expense.installmentNumber ?? null,
     installment_total: expense.installmentTotal ?? null,
+    is_recurring: expense.isRecurring ?? false,
     created_at: expense.createdAt,
     updated_at: expense.updatedAt,
   };

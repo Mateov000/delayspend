@@ -11,6 +11,19 @@ export interface CategorySpending {
   isWarning: boolean;
 }
 
+export interface CategoryWeeklySpending {
+  categoryId: CategoryId;
+  spent: number;
+  weeklyBudget: number;
+  hasBudget: boolean;
+  percentage: number;
+  isOver: boolean;
+  isWarning: boolean;
+  remaining: number;
+  daysRemaining: number;
+  dailyAllowance: number;
+}
+
 export interface WeeklySpendingMetrics {
   spentThisWeek: number;
   weeklyLimit: number | null;
@@ -26,17 +39,24 @@ export interface WeeklySpendingMetrics {
 
 export interface PeriodGoalMetrics {
   spent: number;
+  delayed: number;
+  totalAccounted: number;
   income: number;
+  baseIncome: number;
+  extraIncome: number;
   remaining: number;
   percentage: number;
+  realPercentage: number;
+  delayedPercentage: number;
   isOver: boolean;
   isWarning: boolean;
   dailySpentAverage: number;
+  dailyTotalAverage: number;
   daysActive: number;
 }
 
 /**
- * Calcula cuánto se gastó por categoría vs el presupuesto asignado.
+ * Calcula cuánto se gastó por categoría vs el presupuesto asignado del ciclo/mes.
  * Solo gastos de tipo 'real', no incluye delayed.
  */
 export function calculateCategorySpending(
@@ -73,6 +93,9 @@ export function calculateCategorySpending(
 }
 
 /**
+ * Devuelve el rango de fecha de la semana actual (Lunes a Domingo) en formato YYYY-MM-DD.
+ */
+/**
  * Calcula cuánto se gastó en una categoría específica en la lista de gastos dada.
  */
 export function getSpentForCategory(expenses: Expense[], categoryId: CategoryId): number {
@@ -81,9 +104,6 @@ export function getSpentForCategory(expenses: Expense[], categoryId: CategoryId)
     .reduce((sum, e) => sum + e.amount, 0);
 }
 
-/**
- * Devuelve el rango de fecha de la semana actual (Lunes a Domingo) en formato YYYY-MM-DD.
- */
 export function getCurrentWeekRange(today: Date = new Date()): { start: string; end: string } {
   const d = new Date(today);
   const day = d.getDay();
@@ -97,6 +117,55 @@ export function getCurrentWeekRange(today: Date = new Date()): { start: string; 
     start: monday.toISOString().split('T')[0]!,
     end: sunday.toISOString().split('T')[0]!,
   };
+}
+
+/**
+ * Calcula el progreso de gastos de categorías con meta semanal (Lunes a Domingo).
+ */
+export function calculateCategoryWeeklySpending(
+  expenses: Expense[],
+  weeklyBudgetsByCategory: Record<CategoryId, number>,
+  now: Date = new Date()
+): CategoryWeeklySpending[] {
+  const { start, end } = getCurrentWeekRange(now);
+  const currentDay = now.getDay();
+  const daysPassed = currentDay === 0 ? 7 : currentDay;
+  const daysRemaining = Math.max(1, 8 - daysPassed);
+
+  const spentMap = new Map<CategoryId, number>();
+  for (const exp of expenses) {
+    if (exp.type === 'real' && exp.date >= start && exp.date <= end) {
+      spentMap.set(exp.categoryId, (spentMap.get(exp.categoryId) ?? 0) + exp.amount);
+    }
+  }
+
+  const categoryIdsWithBudget = Object.keys(weeklyBudgetsByCategory) as CategoryId[];
+
+  return categoryIdsWithBudget
+    .filter((catId) => (weeklyBudgetsByCategory[catId] ?? 0) > 0)
+    .map((categoryId) => {
+      const spent = spentMap.get(categoryId) ?? 0;
+      const weeklyBudget = weeklyBudgetsByCategory[categoryId] ?? 0;
+      const remaining = weeklyBudget - spent;
+      const percentage = weeklyBudget > 0 ? (spent / weeklyBudget) * 100 : 0;
+      const isOver = spent > weeklyBudget;
+      const isWarning = percentage >= 80 && !isOver;
+      const dailyAllowance = remaining > 0 ? remaining / daysRemaining : 0;
+
+      return {
+        categoryId,
+        spent,
+        weeklyBudget,
+        hasBudget: true,
+        percentage,
+        isOver,
+        isWarning,
+        remaining,
+        daysRemaining,
+        dailyAllowance,
+      };
+    })
+    .sort((a, b) => b.percentage - a.percentage);
 }
 
 /**
@@ -139,7 +208,8 @@ export function calculateWeeklySpending(
 }
 
 /**
- * Calcula el progreso de gasto del ciclo o período activo vs su initialIncome.
+ * Calcula el progreso de gasto del ciclo o período activo vs su presupuesto asignado.
+ * Incluye el DelaySpend del período, restándolo del disponible y calculando promedios real y total.
  */
 export function calculatePeriodGoalProgress(
   expenses: Expense[],
@@ -155,14 +225,32 @@ export function calculatePeriodGoalProgress(
     return true;
   });
 
-  const spent = periodExpenses
-    .filter((e) => e.type === 'real')
-    .reduce((acc, e) => acc + e.amount, 0);
+  let spent = 0;
+  let delayed = 0;
+  let extraIncome = 0;
 
-  const income = period.initialIncome;
-  const remaining = income - spent;
-  const percentage = (spent / income) * 100;
-  const isOver = spent > income;
+  for (const e of periodExpenses) {
+    if (e.type === 'real') {
+      spent += e.amount;
+      if (e.savedExtraAmount && e.savedExtraAmount > 0) {
+        delayed += e.savedExtraAmount;
+      }
+    } else if (e.type === 'delayed') {
+      delayed += e.amount;
+    } else if (e.type === 'income') {
+      extraIncome += e.amount;
+    }
+  }
+
+  const baseIncome = period.initialIncome;
+  const income = baseIncome + extraIncome;
+  const totalAccounted = spent + delayed;
+  // Resta tanto el gasto real como el delay spend del saldo disponible
+  const remaining = income - totalAccounted;
+  const percentage = income > 0 ? (totalAccounted / income) * 100 : 0;
+  const realPercentage = income > 0 ? (spent / income) * 100 : 0;
+  const delayedPercentage = income > 0 ? (delayed / income) * 100 : 0;
+  const isOver = totalAccounted > income;
   const isWarning = percentage >= 80 && !isOver;
 
   // Días activos desde startDate
@@ -171,15 +259,23 @@ export function calculatePeriodGoalProgress(
   const diffTime = Math.max(0, current.getTime() - start.getTime());
   const daysActive = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   const dailySpentAverage = spent / daysActive;
+  const dailyTotalAverage = totalAccounted / daysActive;
 
   return {
     spent,
+    delayed,
+    totalAccounted,
     income,
+    baseIncome,
+    extraIncome,
     remaining,
     percentage,
+    realPercentage,
+    delayedPercentage,
     isOver,
     isWarning,
     dailySpentAverage,
+    dailyTotalAverage,
     daysActive,
   };
 }
