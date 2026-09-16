@@ -10,6 +10,8 @@ import { ArrowDownLeft, Tag, X } from 'lucide-react';
 interface ExpenseHistoryProps {
   expenses: Expense[];
   period?: Period | null;
+  allPeriods?: Period[];
+  isAllHistory?: boolean;
   onEdit: (expense: Expense) => void;
   onDelete: (id: string) => void;
   onToggleTransfer: (id: string) => void;
@@ -19,6 +21,8 @@ interface ExpenseHistoryProps {
 export function ExpenseHistory({
   expenses,
   period,
+  allPeriods = [],
+  isAllHistory = false,
   onEdit,
   onDelete,
   onToggleTransfer,
@@ -39,6 +43,16 @@ export function ExpenseHistory({
 
   const groups = groupExpensesByDate(displayedExpenses);
   const showIncomeMilestone = Boolean(period && period.initialIncome > 0 && !selectedTag);
+
+  const totalPeriodsIncome = useMemo(
+    () => allPeriods.filter((p) => !p.deletedAt).reduce((sum, p) => sum + (p.initialIncome || 0), 0),
+    [allPeriods]
+  );
+  const totalExtraIncome = useMemo(
+    () => expenses.filter((e) => e.type === 'income').reduce((sum, e) => sum + e.amount, 0),
+    [expenses]
+  );
+  const totalAllIncome = totalPeriodsIncome + totalExtraIncome;
 
   return (
     <div className="flex flex-col gap-4 mt-6">
@@ -105,6 +119,32 @@ export function ExpenseHistory({
           </div>
           <span className="font-black text-emerald-700 text-sm">
             +{formatCurrency(period.initialIncome)}
+          </span>
+        </div>
+      )}
+
+      {/* Tarjeta hito de total de ingresos en Todo el historial */}
+      {isAllHistory && totalAllIncome > 0 && !selectedTag && (
+        <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-2xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+              <ArrowDownLeft className="w-4 h-4" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-slate-800">
+                Total de Ingresos Acumulados
+              </span>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {totalPeriodsIncome > 0 && totalExtraIncome > 0
+                  ? `Historial consolidado • Ciclos: ${formatCurrency(totalPeriodsIncome)} + Extras: ${formatCurrency(totalExtraIncome)}`
+                  : totalPeriodsIncome > 0
+                  ? 'Historial consolidado • Asignaciones de ciclos'
+                  : 'Historial consolidado • Ingresos extras'}
+              </span>
+            </div>
+          </div>
+          <span className="font-black text-emerald-700 text-sm">
+            +{formatCurrency(totalAllIncome)}
           </span>
         </div>
       )}

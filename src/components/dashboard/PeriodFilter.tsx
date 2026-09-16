@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { usePeriodStore } from '../../store/usePeriodStore';
 import { useFilterStore } from '../../store/useFilterStore';
 import { STRINGS } from '../../constants/strings';
-import { formatDayMonth } from '../../utils/format';
+import { formatDayMonth, formatCurrency } from '../../utils/format';
+import { useExpenseStore } from '../../store/useExpenseStore';
 import { RotateCcw, Undo2, PlusCircle, Edit3, ChevronDown, Calendar } from 'lucide-react';
 import { BottomSheet } from '../ui/BottomSheet';
 
@@ -19,7 +20,12 @@ export function PeriodFilter({
 }: PeriodFilterProps) {
   const { periods, activePeriodId, setActivePeriodId } = usePeriodStore();
   const { activeFilter, setFilterType } = useFilterStore();
+  const expenses = useExpenseStore((state) => state.expenses);
   const [isPastPeriodsOpen, setIsPastPeriodsOpen] = useState(false);
+
+  const totalAllIncome =
+    periods.filter((p) => !p.deletedAt).reduce((sum, p) => sum + (p.initialIncome || 0), 0) +
+    expenses.filter((e) => e.type === 'income').reduce((sum, e) => sum + e.amount, 0);
 
   // Encontrar período actualmente abierto y períodos cerrados
   const openPeriod = periods.find((p) => p.endDate === null) ?? null;
@@ -174,7 +180,14 @@ export function PeriodFilter({
             </button>
           </div>
         ) : (
-          <span className="text-slate-500 font-medium">Historial consolidado acumulado</span>
+          <div className="flex items-center gap-1.5 text-slate-500 font-medium truncate">
+            <span>Historial consolidado</span>
+            {totalAllIncome > 0 && (
+              <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 font-bold px-1.5 py-0.5 rounded-md text-[10px] shrink-0">
+                +{formatCurrency(totalAllIncome)}
+              </span>
+            )}
+          </div>
         )}
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">

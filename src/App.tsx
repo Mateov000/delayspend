@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/layout/Layout';
 import { Header } from './components/layout/Header';
 import { BottomTabBar, TabId } from './components/layout/BottomTabBar';
@@ -17,7 +17,7 @@ import { AnalyticsView } from './components/analytics/AnalyticsView';
 import { SettingsView } from './components/settings/SettingsView';
 import { useExpenseStore } from './store/useExpenseStore';
 import { useFilterStore } from './store/useFilterStore';
-import { usePeriodStore } from './store/usePeriodStore';
+import { usePeriodStore, getLatestPeriod } from './store/usePeriodStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useSyncStore } from './store/useSyncStore';
 import { useToastStore } from './store/useToastStore';
@@ -60,6 +60,20 @@ export default function App() {
     return () => unsubSync();
   }, [user?.id, initializeSync]);
 
+  // Al abrir la app, seleccionar por defecto el último período
+  const hasInitializedDefaultPeriod = useRef(false);
+
+  useEffect(() => {
+    if (!hasInitializedDefaultPeriod.current && periods.length > 0) {
+      const latestPeriod = getLatestPeriod(periods);
+      if (latestPeriod) {
+        setActivePeriodId(latestPeriod.id);
+        setFilterType('custom_period');
+        hasInitializedDefaultPeriod.current = true;
+      }
+    }
+  }, [periods, setActivePeriodId, setFilterType]);
+
   // Navegación por pestañas
   const [activeTab, setActiveTab] = useState<TabId>('home');
 
@@ -87,7 +101,7 @@ export default function App() {
   );
 
   // Cálculo reactivo de métricas sobre el período seleccionado
-  const metrics = calculateMetrics(expenses, activeFilter, activePeriod);
+  const metrics = calculateMetrics(expenses, activeFilter, activePeriod, periods);
 
   // Manejo de altas y edición de gastos
   const handleOpenAdd = () => {
@@ -196,12 +210,15 @@ export default function App() {
             <SummaryCards
               metrics={metrics}
               onTransferClick={handleTransferClick}
+              isAllHistory={activeFilter.type === 'all'}
             />
 
             {/* Historial Agrupado por Fecha */}
             <ExpenseHistory
               expenses={filteredExpenses}
               period={activePeriod}
+              allPeriods={periods}
+              isAllHistory={activeFilter.type === 'all'}
               onEdit={handleEdit}
               onDelete={handleDeleteRequest}
               onToggleTransfer={handleToggleTransfer}

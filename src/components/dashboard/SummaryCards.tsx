@@ -8,9 +8,10 @@ import { formatCurrency } from '../../utils/format';
 interface SummaryCardsProps {
   metrics: FinancialMetrics;
   onTransferClick: () => void;
+  isAllHistory?: boolean;
 }
 
-export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
+export function SummaryCards({ metrics, onTransferClick, isAllHistory = false }: SummaryCardsProps) {
   const hasIncome = metrics.initialIncome > 0;
 
   return (
@@ -31,12 +32,12 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
               </div>
               <div>
                 <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider block">
-                  {STRINGS.PERIOD_CARD_INCOME_TITLE}
+                  {isAllHistory ? 'Total de Ingresos Acumulados' : STRINGS.PERIOD_CARD_INCOME_TITLE}
                 </span>
                 <span className="text-base font-extrabold text-white">
                   {formatCurrency(metrics.initialIncome)}
                 </span>
-                {metrics.extraIncome > 0 && (
+                {(metrics.extraIncome > 0 || (isAllHistory && metrics.baseIncome > 0)) && (
                   <span className="text-[9px] text-emerald-300 font-medium block">
                     (Base: {formatCurrency(metrics.baseIncome)} + Extra: +{formatCurrency(metrics.extraIncome)})
                   </span>
@@ -46,7 +47,7 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
 
             <div className="text-right">
               <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
-                {STRINGS.PERIOD_CARD_REMAINING_TITLE}
+                {isAllHistory ? 'Saldo Total Disponible' : STRINGS.PERIOD_CARD_REMAINING_TITLE}
               </span>
               <span
                 className={`text-base font-extrabold ${

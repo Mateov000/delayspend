@@ -4,7 +4,8 @@ import { isExpenseMatchingFilter } from './date';
 export function calculateMetrics(
   expenses: Expense[],
   filter: PeriodFilterState,
-  period?: Period | null
+  period?: Period | null,
+  periods?: Period[]
 ): FinancialMetrics {
   const filtered = expenses.filter((expense) =>
     isExpenseMatchingFilter(expense, filter, period)
@@ -40,7 +41,14 @@ export function calculateMetrics(
     }
   }
 
-  const baseIncome = period ? period.initialIncome : 0;
+  let baseIncome = 0;
+  if (period) {
+    baseIncome = period.initialIncome;
+  } else if (filter.type === 'all' && periods && periods.length > 0) {
+    baseIncome = periods
+      .filter((p) => !p.deletedAt)
+      .reduce((sum, p) => sum + (p.initialIncome || 0), 0);
+  }
   const totalIncome = baseIncome + extraIncome;
   const totalAccounted = totalReal + totalDelayed;
   const remainingBalance = totalIncome - totalAccounted;

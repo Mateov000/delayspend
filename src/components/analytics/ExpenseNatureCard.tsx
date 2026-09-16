@@ -309,3 +309,4 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
     </div>
   );
 }
+

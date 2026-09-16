@@ -71,6 +71,20 @@ function getDayBefore(dateStr: string): string {
   return d.toISOString().split('T')[0]!;
 }
 
+
+export function getLatestPeriod(periods: Period[]): Period | null {
+  if (periods.length === 0) return null;
+  const openPeriod = periods.find((p) => p.endDate === null && !p.deletedAt);
+  if (openPeriod) return openPeriod;
+  return [...periods]
+    .filter((p) => !p.deletedAt)
+    .sort((a, b) => {
+      const diff = b.startDate.localeCompare(a.startDate);
+      if (diff !== 0) return diff;
+      return b.createdAt.localeCompare(a.createdAt);
+    })[0] ?? null;
+}
+
 export const usePeriodStore = create<PeriodState>()(
   persist(
     (set, get) => ({
