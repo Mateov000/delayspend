@@ -27,7 +27,6 @@ export function ExpenseListItem({
   const isReal = expense.type === 'real';
   const isTransferred = Boolean(expense.transferredAt);
   const hasCheaperSavings = Boolean(isReal && expense.savedExtraAmount && expense.savedExtraAmount > 0);
-  const isLinkedSavings = Boolean(!isReal && expense.linkedExpenseId);
 
   return (
     <div className="relative flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition-colors">
@@ -62,13 +61,8 @@ export function ExpenseListItem({
               </span>
             )}
 
-            {isLinkedSavings && (
-              <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200/80 font-bold px-1.5 py-0.5 rounded-md">
-                ⭐ {STRINGS.HISTORY_BADGE_LINKED_SAVINGS}
-              </span>
-            )}
-
-            {!isReal && (
+            {/* Transfer status badge */}
+            {(!isReal || hasCheaperSavings) && (
               <button
                 type="button"
                 onClick={() => onToggleTransfer(expense.id)}
@@ -87,10 +81,10 @@ export function ExpenseListItem({
                   {isTransferred ? (
                     <>
                       <CheckCircle className="w-3 h-3 text-teal-600" />
-                      <span>Transferido</span>
+                      <span>{hasCheaperSavings ? 'Ahorro transferido' : 'Transferido'}</span>
                     </>
                   ) : (
-                    <span>⏳ Pendiente</span>
+                    <span>{hasCheaperSavings ? '⏳ Ahorro pendiente' : '⏳ Pendiente'}</span>
                   )}
                 </Badge>
               </button>
@@ -99,29 +93,37 @@ export function ExpenseListItem({
         </div>
       </div>
 
-      {/* Right: Amount & Action Menu Trigger */}
+      {/* Right: Amount & Actions */}
       <div className="flex items-center gap-2 shrink-0">
-        <span
-          className={`text-sm font-bold tracking-tight ${
-            isReal ? 'text-slate-900' : 'text-emerald-600'
-          }`}
-        >
-          {isReal ? '-' : '+'} {formatCurrency(expense.amount)}
-        </span>
+        <div className="flex flex-col items-end">
+          <span
+            className={`text-base font-bold tracking-tight ${
+              isReal ? 'text-slate-900' : 'text-emerald-700 font-extrabold'
+            }`}
+          >
+            {formatCurrency(expense.amount)}
+          </span>
+          {hasCheaperSavings && (
+            <span className="text-[10px] text-emerald-600 font-bold">
+              +{formatCurrency(expense.savedExtraAmount!)} ahorro
+            </span>
+          )}
+        </div>
 
+        {/* Botón de Menú Rápido (3 puntos) */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setShowMenu(!showMenu)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-            aria-label="Acciones de gasto"
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+            title="Opciones"
           >
             <MoreVertical className="w-4 h-4" />
           </button>
 
+          {/* Menú Flotante */}
           {showMenu && (
             <>
-              {/* Backdrop for closing menu */}
               <div
                 className="fixed inset-0 z-20"
                 onClick={() => setShowMenu(false)}
@@ -154,7 +156,7 @@ export function ExpenseListItem({
                   </button>
                 )}
 
-                {!isReal && (
+                {(!isReal || hasCheaperSavings) && (
                   <button
                     type="button"
                     onClick={() => {

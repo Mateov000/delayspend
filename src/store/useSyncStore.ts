@@ -147,7 +147,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
             if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
               const row = payload.new as DbExpenseRow;
-              if (row.deleted_at) {
+              if (row.deleted_at || row.linked_expense_id) {
                 useExpenseStore.getState().deleteExpense(row.id);
               } else {
                 const incoming = mapRowToExpense(row);
@@ -252,7 +252,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
       if (expError) throw expError;
 
-      const remoteExpenses = (remoteRows as DbExpenseRow[]).map(mapRowToExpense);
+      const remoteExpenses = (remoteRows as DbExpenseRow[])
+        .filter((r) => !r.linked_expense_id)
+        .map(mapRowToExpense);
       const localExpenses = useExpenseStore.getState().expenses;
 
       const mergedExpensesMap = new Map<string, Expense>();

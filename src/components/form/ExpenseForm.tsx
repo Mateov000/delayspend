@@ -24,7 +24,7 @@ export function ExpenseForm({
 
   const todayStr = new Date().toISOString().split('T')[0] ?? '';
 
-  const [type, setType] = useState<ExpenseType>(initialValues?.type ?? 'delayed');
+  const [type, setType] = useState<ExpenseType>(initialValues?.type ?? 'real');
   const [amountStr, setAmountStr] = useState<string>(
     initialValues?.amount ? String(initialValues.amount) : ''
   );
@@ -74,7 +74,6 @@ export function ExpenseForm({
       date: date || todayStr,
       savedExtraAmount: cleanSavedExtra,
       periodId: initialValues?.periodId,
-      linkedExpenseId: initialValues?.linkedExpenseId,
     });
   };
 
@@ -303,4 +302,3 @@ export function ExpenseForm({
     </form>
   );
 }
-

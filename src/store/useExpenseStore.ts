@@ -32,6 +32,9 @@ function sanitizeExpense(raw: unknown): Expense | null {
   if (typeof item.id !== 'string' || !item.id) return null;
   if (item.type !== 'real' && item.type !== 'delayed') return null;
 
+  // Limpiar/ignorar cualquier registro fantasma complementario antiguo
+  if (item.linkedExpenseId) return null;
+
   const amount = Number(item.amount);
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
@@ -46,7 +49,6 @@ function sanitizeExpense(raw: unknown): Expense | null {
     typeof item.savedExtraAmount === 'number' && item.savedExtraAmount > 0
       ? Math.round(item.savedExtraAmount * 100) / 100
       : undefined;
-  const linkedExpenseId = typeof item.linkedExpenseId === 'string' && item.linkedExpenseId ? item.linkedExpenseId : null;
 
   return {
     id: item.id,
@@ -55,12 +57,11 @@ function sanitizeExpense(raw: unknown): Expense | null {
     description,
     categoryId,
     date,
-    transferredAt: item.type === 'real' ? null : transferredAt,
+    transferredAt: item.type === 'real' && !savedExtraAmount ? null : transferredAt,
     createdAt,
     updatedAt,
     periodId,
     savedExtraAmount,
-    linkedExpenseId,
   };
 }
 
@@ -89,151 +90,72 @@ export const useExpenseStore = create<ExpenseState>()(
           updatedAt: now,
           periodId: input.periodId ?? null,
           savedExtraAmount: savedExtra,
-          linkedExpenseId: input.linkedExpenseId ?? null,
         };
 
-        const newExpenses: Expense[] = [newExpense];
-
-        // Si es gasto real con ahorro por opción más barata, crear el gasto delayeado complementario
-        let companionExpense: Expense | null = null;
-        if (savedExtra && savedExtra > 0) {
-          companionExpense = {
-            id: generateId(),
-            type: 'delayed',
-            amount: savedExtra,
-            description: `Ahorro opción más barata (${input.description.trim()})`,
-            categoryId: input.categoryId,
-            date: input.date,
-            transferredAt: null,
-            createdAt: now,
-            updatedAt: now,
-            periodId: input.periodId ?? null,
-            linkedExpenseId: expenseId,
-          };
-          newExpenses.unshift(companionExpense);
-        }
-
         set((state) => ({
-          expenses: [...newExpenses, ...state.expenses],
+          // Se agrega como un único gasto directo y unificado, filtrando antiguos fantasmas si los hubiera
+          expenses: [newExpense, ...state.expenses.filter((e) => !e.linkedExpenseId)],
         }));
 
         syncListener?.('push', newExpense);
-        if (companionExpense) {
-          syncListener?.('push', companionExpense);
-        }
-
         return newExpense;
       },
 
       updateExpense: (id: string, input: Partial<ExpenseInput>) => {
         const now = new Date().toISOString();
-        let updatedParent: Expense | null = null;
-        let companionToPush: Expense | null = null;
-        let companionToDeleteId: string | null = null;
+        let updatedItem: Expense | null = null;
 
-        set((state) => {
-          const parent = state.expenses.find((e) => e.id === id);
-          if (!parent) return state;
+        set((state) => ({
+          expenses: state.expenses.map((expense) => {
+            if (expense.id !== id) return expense;
 
-          const updatedType = input.type ?? parent.type;
-          const updatedAmount =
-            input.amount !== undefined
-              ? Math.round(Number(input.amount) * 100) / 100
-              : parent.amount;
-          const updatedDesc =
-            input.description !== undefined
-              ? input.description.trim()
-              : parent.description;
-          const updatedCat = input.categoryId ?? parent.categoryId;
-          const updatedDate = input.date ?? parent.date;
-          const updatedPeriodId =
-            input.periodId !== undefined ? input.periodId : parent.periodId;
-          const updatedSavedExtra =
-            input.savedExtraAmount !== undefined
-              ? (input.savedExtraAmount > 0 ? Math.round(input.savedExtraAmount * 100) / 100 : undefined)
-              : parent.savedExtraAmount;
+            const updatedType = input.type ?? expense.type;
+            const updatedAmount =
+              input.amount !== undefined
+                ? Math.round(Number(input.amount) * 100) / 100
+                : expense.amount;
+            const updatedDesc =
+              input.description !== undefined
+                ? input.description.trim()
+                : expense.description;
+            const updatedCat = input.categoryId ?? expense.categoryId;
+            const updatedDate = input.date ?? expense.date;
+            const updatedPeriodId =
+              input.periodId !== undefined ? input.periodId : expense.periodId;
+            const updatedSavedExtra =
+              input.savedExtraAmount !== undefined
+                ? (input.savedExtraAmount > 0 ? Math.round(input.savedExtraAmount * 100) / 100 : undefined)
+                : expense.savedExtraAmount;
 
-          updatedParent = {
-            ...parent,
-            type: updatedType,
-            amount: updatedAmount,
-            description: updatedDesc,
-            categoryId: updatedCat,
-            date: updatedDate,
-            periodId: updatedPeriodId,
-            savedExtraAmount: updatedType === 'real' ? updatedSavedExtra : undefined,
-            transferredAt: updatedType === 'real' ? null : parent.transferredAt,
-            updatedAt: now,
-          };
+            updatedItem = {
+              ...expense,
+              type: updatedType,
+              amount: updatedAmount,
+              description: updatedDesc,
+              categoryId: updatedCat,
+              date: updatedDate,
+              periodId: updatedPeriodId,
+              savedExtraAmount: updatedType === 'real' ? updatedSavedExtra : undefined,
+              transferredAt:
+                updatedType === 'real' && !updatedSavedExtra ? null : expense.transferredAt,
+              updatedAt: now,
+            };
 
-          // Buscar si existe un gasto complementario ya vinculado
-          const existingCompanion = state.expenses.find((e) => e.linkedExpenseId === id);
+            return updatedItem;
+          }),
+        }));
 
-          let nextExpenses = state.expenses.map((e) => (e.id === id ? updatedParent! : e));
-
-          if (updatedType === 'real' && updatedSavedExtra && updatedSavedExtra > 0) {
-            if (existingCompanion) {
-              // Actualizar el complementario existente
-              companionToPush = {
-                ...existingCompanion,
-                amount: updatedSavedExtra,
-                description: `Ahorro opción más barata (${updatedDesc})`,
-                categoryId: updatedCat,
-                date: updatedDate,
-                periodId: updatedPeriodId,
-                updatedAt: now,
-              };
-              nextExpenses = nextExpenses.map((e) =>
-                e.id === existingCompanion.id ? companionToPush! : e
-              );
-            } else {
-              // Crear nuevo complementario
-              companionToPush = {
-                id: generateId(),
-                type: 'delayed',
-                amount: updatedSavedExtra,
-                description: `Ahorro opción más barata (${updatedDesc})`,
-                categoryId: updatedCat,
-                date: updatedDate,
-                transferredAt: null,
-                createdAt: now,
-                updatedAt: now,
-                periodId: updatedPeriodId,
-                linkedExpenseId: id,
-              };
-              nextExpenses = [companionToPush, ...nextExpenses];
-            }
-          } else if (existingCompanion) {
-            // Se quitó el ahorro extra: borrar el complementario
-            companionToDeleteId = existingCompanion.id;
-            nextExpenses = nextExpenses.filter((e) => e.id !== existingCompanion.id);
-          }
-
-          return { expenses: nextExpenses };
-        });
-
-        if (updatedParent) syncListener?.('push', updatedParent);
-        if (companionToPush) syncListener?.('push', companionToPush);
-        if (companionToDeleteId) syncListener?.('delete', companionToDeleteId);
+        if (updatedItem) {
+          syncListener?.('push', updatedItem);
+        }
       },
 
       deleteExpense: (id: string) => {
-        let companionId: string | null = null;
-        set((state) => {
-          const companion = state.expenses.find((e) => e.linkedExpenseId === id);
-          if (companion) companionId = companion.id;
-
-          return {
-            expenses: state.expenses.filter(
-              (expense) => expense.id !== id && expense.linkedExpenseId !== id
-            ),
-          };
-        });
+        set((state) => ({
+          expenses: state.expenses.filter((expense) => expense.id !== id && !expense.linkedExpenseId),
+        }));
 
         syncListener?.('delete', id);
-        if (companionId) {
-          syncListener?.('delete', companionId);
-        }
       },
 
       assignExpensesToPeriod: (expenseIds: string[], periodId: string | null) => {
@@ -266,7 +188,13 @@ export const useExpenseStore = create<ExpenseState>()(
 
         set((state) => ({
           expenses: state.expenses.map((expense) => {
-            if (expense.type === 'delayed' && expense.transferredAt === null) {
+            const isPendingDelayed = expense.type === 'delayed' && expense.transferredAt === null;
+            const isPendingRealSavings =
+              expense.type === 'real' &&
+              Boolean(expense.savedExtraAmount && expense.savedExtraAmount > 0) &&
+              expense.transferredAt === null;
+
+            if (isPendingDelayed || isPendingRealSavings) {
               const updated = {
                 ...expense,
                 transferredAt: now,
@@ -290,7 +218,12 @@ export const useExpenseStore = create<ExpenseState>()(
 
         set((state) => ({
           expenses: state.expenses.map((expense) => {
-            if (expense.id !== id || expense.type !== 'delayed') return expense;
+            if (expense.id !== id) return expense;
+            const canTransfer =
+              expense.type === 'delayed' ||
+              Boolean(expense.savedExtraAmount && expense.savedExtraAmount > 0);
+            if (!canTransfer) return expense;
+
             updatedItem = {
               ...expense,
               transferredAt: expense.transferredAt ? null : now,

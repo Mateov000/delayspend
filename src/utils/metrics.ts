@@ -18,6 +18,15 @@ export function calculateMetrics(
   for (const exp of filtered) {
     if (exp.type === 'real') {
       totalReal += exp.amount;
+      // El ahorro de la opción más barata es parte del ahorro protegido (delay)
+      if (exp.savedExtraAmount && exp.savedExtraAmount > 0) {
+        totalDelayed += exp.savedExtraAmount;
+        if (exp.transferredAt === null) {
+          pendingTransfer += exp.savedExtraAmount;
+        } else {
+          totalTransferred += exp.savedExtraAmount;
+        }
+      }
     } else if (exp.type === 'delayed') {
       totalDelayed += exp.amount;
       if (exp.transferredAt === null) {
@@ -48,4 +57,3 @@ export function calculateMetrics(
     freeBalance,
   };
 }
-

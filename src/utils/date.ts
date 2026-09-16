@@ -91,6 +91,9 @@ export function groupExpensesByDate(expenses: Expense[]): ExpenseGroup[] {
     for (const item of items) {
       if (item.type === 'real') {
         subtotalReal += item.amount;
+        if (item.savedExtraAmount && item.savedExtraAmount > 0) {
+          subtotalDelayed += item.savedExtraAmount;
+        }
       } else {
         subtotalDelayed += item.amount;
       }
