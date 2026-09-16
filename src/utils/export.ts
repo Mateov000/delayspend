@@ -42,7 +42,6 @@ export function generateWhatsAppReport(
 ): string {
   const unified = options?.unified ?? false;
   const period = options?.period ?? null;
-  // Excluir cualquier registro fantasma si existiera
   const filtered = expenses
     .filter((e) => !e.linkedExpenseId)
     .filter((e) => isExpenseMatchingFilter(e, filter, period));

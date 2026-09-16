@@ -38,10 +38,9 @@ export function calculateMetrics(
   }
 
   const initialIncome = period ? period.initialIncome : 0;
-  const remainingBalance = initialIncome - totalReal;
-  const freeBalance = initialIncome - totalReal - pendingTransfer;
-
   const totalAccounted = totalReal + totalDelayed;
+  const remainingBalance = initialIncome - totalAccounted;
+  const freeBalance = initialIncome - totalAccounted;
   const delayRatePercentage =
     totalAccounted > 0 ? Math.round((totalDelayed / totalAccounted) * 100) : 0;
 
@@ -57,3 +56,4 @@ export function calculateMetrics(
     freeBalance,
   };
 }
+

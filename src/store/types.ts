@@ -65,8 +65,8 @@ export interface FinancialMetrics {
   totalAccounted: number;   // Total a rendir (real + delayed)
   delayRatePercentage: number; // (totalDelayed / totalAccounted) * 100
   initialIncome: number;    // Ingreso asignado al período (ej: $50.000)
-  remainingBalance: number; // initialIncome - totalReal (plata que queda disponible del ingreso)
-  freeBalance: number;      // initialIncome - totalReal - pendingTransfer (plata libre tras apartar el ahorro)
+  remainingBalance: number; // initialIncome - totalReal - totalDelayed (plata disponible restando gastos reales y delay spend)
+  freeBalance: number;      // initialIncome - totalReal - totalDelayed
 }
 
 export interface ExpenseInput {
@@ -76,7 +76,7 @@ export interface ExpenseInput {
   categoryId: CategoryId;
   date: string;
   periodId?: string | null;
-  savedExtraAmount?: number;
+  savedExtraAmount?: number | null;
   linkedExpenseId?: string | null;
 }
 

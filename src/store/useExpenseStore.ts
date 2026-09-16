@@ -75,7 +75,7 @@ export const useExpenseStore = create<ExpenseState>()(
         const expenseId = generateId();
         const savedExtra =
           input.type === 'real' && input.savedExtraAmount && input.savedExtraAmount > 0
-            ? Math.round(input.savedExtraAmount * 100) / 100
+            ? Math.round(Number(input.savedExtraAmount) * 100) / 100
             : undefined;
 
         const newExpense: Expense = {
@@ -93,7 +93,6 @@ export const useExpenseStore = create<ExpenseState>()(
         };
 
         set((state) => ({
-          // Se agrega como un único gasto directo y unificado, filtrando antiguos fantasmas si los hubiera
           expenses: [newExpense, ...state.expenses.filter((e) => !e.linkedExpenseId)],
         }));
 
@@ -122,10 +121,23 @@ export const useExpenseStore = create<ExpenseState>()(
             const updatedDate = input.date ?? expense.date;
             const updatedPeriodId =
               input.periodId !== undefined ? input.periodId : expense.periodId;
-            const updatedSavedExtra =
-              input.savedExtraAmount !== undefined
-                ? (input.savedExtraAmount > 0 ? Math.round(input.savedExtraAmount * 100) / 100 : undefined)
-                : expense.savedExtraAmount;
+
+            // Manejo estricto de remoción o actualización del sobreprecio ahorrado
+            let updatedSavedExtra: number | undefined = expense.savedExtraAmount;
+            if ('savedExtraAmount' in input) {
+              if (
+                updatedType === 'real' &&
+                input.savedExtraAmount !== null &&
+                input.savedExtraAmount !== undefined &&
+                input.savedExtraAmount > 0
+              ) {
+                updatedSavedExtra = Math.round(Number(input.savedExtraAmount) * 100) / 100;
+              } else {
+                updatedSavedExtra = undefined;
+              }
+            } else if (updatedType !== 'real') {
+              updatedSavedExtra = undefined;
+            }
 
             updatedItem = {
               ...expense,
@@ -135,7 +147,7 @@ export const useExpenseStore = create<ExpenseState>()(
               categoryId: updatedCat,
               date: updatedDate,
               periodId: updatedPeriodId,
-              savedExtraAmount: updatedType === 'real' ? updatedSavedExtra : undefined,
+              savedExtraAmount: updatedSavedExtra,
               transferredAt:
                 updatedType === 'real' && !updatedSavedExtra ? null : expense.transferredAt,
               updatedAt: now,

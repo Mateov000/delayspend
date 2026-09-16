@@ -50,8 +50,6 @@ export function ExportPanel({
   };
 
   const handleDownloadCSV = () => {
-    downloadExpensesCSV(expenses, filter);
-    downloadExpensesCSV(expenses, filter, { unified: isUnified });
     downloadExpensesCSV(expenses, filter, {
       unified: isUnified,
       period,
@@ -156,13 +154,11 @@ export function ExportPanel({
           <div className="flex flex-col gap-3">
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-2 text-xs text-slate-600">
               <span className="font-semibold text-slate-800">
-                Formato estándar con codificación UTF-8 BOM
                 {isUnified
                   ? 'Formato unificado con codificación UTF-8 BOM'
                   : 'Formato estándar con codificación UTF-8 BOM'}
               </span>
               <p>
-                Este archivo incluye todas las columnas (Fecha, Tipo, Monto, Categoría, Detalle y Estado de Transferencia) preparadas para abrir directamente en Microsoft Excel o Google Sheets sin errores de caracteres.
                 {isUnified
                   ? STRINGS.EXPORT_CSV_UNIFIED_DESC
                   : 'Este archivo incluye todas las columnas (Fecha, Tipo, Monto, Categoría, Detalle y Estado de Transferencia) preparadas para abrir directamente en Microsoft Excel o Google Sheets sin errores de caracteres.'}
@@ -189,4 +185,3 @@ export function ExportPanel({
     </BottomSheet>
   );
 }
-

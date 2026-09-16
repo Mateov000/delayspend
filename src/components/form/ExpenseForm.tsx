@@ -5,7 +5,7 @@ import { STRINGS } from '../../constants/strings';
 import { useToastStore } from '../../store/useToastStore';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { Button } from '../ui/Button';
-import { ArrowDownLeft, ShieldCheck, PiggyBank } from 'lucide-react';
+import { ArrowDownLeft, ShieldCheck, PiggyBank, X } from 'lucide-react';
 
 interface ExpenseFormProps {
   initialValues?: ExpenseInput;
@@ -39,9 +39,13 @@ export function ExpenseForm({
   );
 
   const handleAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
-    // Permite números y una sola coma o punto
     const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
     setAmountStr(val);
+  };
+
+  const handleRemoveSavings = () => {
+    setHasCheaperOption(false);
+    setCheaperSavingsStr('');
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -58,7 +62,7 @@ export function ExpenseForm({
       return;
     }
 
-    let cleanSavedExtra: number | undefined = undefined;
+    let cleanSavedExtra: number | null = null;
     if (type === 'real' && hasCheaperOption) {
       const parsedSavings = parseFloat(cheaperSavingsStr.replace(/[^0-9.,]/g, '').replace(',', '.'));
       if (!isNaN(parsedSavings) && parsedSavings > 0) {
@@ -148,7 +152,13 @@ export function ExpenseForm({
         <div className="flex flex-col gap-3 p-3.5 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl transition-all shadow-2xs">
           <div
             className="flex items-center justify-between cursor-pointer"
-            onClick={() => setHasCheaperOption(!hasCheaperOption)}
+            onClick={() => {
+              if (hasCheaperOption) {
+                handleRemoveSavings();
+              } else {
+                setHasCheaperOption(true);
+              }
+            }}
           >
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-300/80 text-emerald-700 flex items-center justify-center shrink-0">
@@ -170,7 +180,11 @@ export function ExpenseForm({
               aria-checked={hasCheaperOption}
               onClick={(e) => {
                 e.stopPropagation();
-                setHasCheaperOption(!hasCheaperOption);
+                if (hasCheaperOption) {
+                  handleRemoveSavings();
+                } else {
+                  setHasCheaperOption(true);
+                }
               }}
               className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                 hasCheaperOption ? 'bg-emerald-600' : 'bg-slate-300'
@@ -185,10 +199,22 @@ export function ExpenseForm({
           </div>
 
           {hasCheaperOption && (
-            <div className="flex flex-col gap-1.5 pt-2.5 border-t border-emerald-200/70">
-              <label htmlFor="cheaper-savings" className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                {STRINGS.FORM_CHEAPER_SAVINGS_LABEL}
-              </label>
+            <div className="flex flex-col gap-2 pt-2.5 border-t border-emerald-200/70">
+              <div className="flex items-center justify-between">
+                <label htmlFor="cheaper-savings" className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
+                  {STRINGS.FORM_CHEAPER_SAVINGS_LABEL}
+                </label>
+                <button
+                  type="button"
+                  onClick={handleRemoveSavings}
+                  className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-0.5 cursor-pointer"
+                  title="Quitar sobreprecio"
+                >
+                  <X className="w-3 h-3" />
+                  <span>Quitar sobreprecio</span>
+                </button>
+              </div>
+
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold text-sm">
                   $
@@ -206,6 +232,7 @@ export function ExpenseForm({
                   className="w-full pl-7 pr-3 py-2 rounded-xl border border-emerald-300 bg-white text-emerald-950 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
                 />
               </div>
+
               <span className="text-[10px] text-emerald-700 font-medium leading-tight">
                 {STRINGS.FORM_CHEAPER_SAVINGS_HINT}
               </span>
