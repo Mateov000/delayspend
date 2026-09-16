@@ -1,6 +1,6 @@
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { ExpenseInput, ExpenseType, CategoryId } from '../../store/types';
-import { CATEGORIES } from '../../constants/categories';
+import { useCategoryStore, getAllCategories } from '../../store/useCategoryStore';
 import { STRINGS } from '../../constants/strings';
 import { useToastStore } from '../../store/useToastStore';
 import { useExpenseStore } from '../../store/useExpenseStore';
@@ -41,6 +41,8 @@ export function ExpenseForm({
   const { getBudgetForCategory } = useBudgetStore();
 
   const todayStr = new Date().toISOString().split('T')[0] ?? '';
+  const { customCategories } = useCategoryStore();
+  const allCategories = getAllCategories(customCategories);
 
   // Estado principal del formulario
   const [type, setType] = useState<ExpenseType>(initialValues?.type ?? 'real');
@@ -143,7 +145,7 @@ export function ExpenseForm({
     });
   };
 
-  const selectedCategoryObj = CATEGORIES.find((c) => c.id === categoryId);
+  const selectedCategoryObj = allCategories.find((c) => c.id === categoryId);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -349,7 +351,7 @@ export function ExpenseForm({
             {STRINGS.FORM_CATEGORY_LABEL}
           </label>
           <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1">
-            {CATEGORIES.map((cat) => {
+            {allCategories.map((cat) => {
               const isSelected = categoryId === cat.id;
               return (
                 <button

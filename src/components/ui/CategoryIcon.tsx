@@ -9,6 +9,14 @@ import {
   HeartPulse,
   GraduationCap,
   Sparkles,
+  Scissors,
+  Dumbbell,
+  Home,
+  PawPrint,
+  Car,
+  Gift,
+  Coffee,
+  Smile,
   LucideProps,
 } from 'lucide-react';
 
@@ -34,6 +42,22 @@ export function CategoryIcon({ name, ...props }: CategoryIconProps) {
       return <CreditCard {...props} />;
     case 'HeartPulse':
       return <HeartPulse {...props} />;
+    case 'Scissors':
+      return <Scissors {...props} />;
+    case 'Dumbbell':
+      return <Dumbbell {...props} />;
+    case 'Home':
+      return <Home {...props} />;
+    case 'PawPrint':
+      return <PawPrint {...props} />;
+    case 'Car':
+      return <Car {...props} />;
+    case 'Gift':
+      return <Gift {...props} />;
+    case 'Coffee':
+      return <Coffee {...props} />;
+    case 'Smile':
+      return <Smile {...props} />;
     case 'GraduationCap':
       return <GraduationCap {...props} />;
     case 'Sparkles':
@@ -41,4 +65,3 @@ export function CategoryIcon({ name, ...props }: CategoryIconProps) {
       return <Sparkles {...props} />;
   }
 }
-

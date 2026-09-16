@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Expense } from '../../store/types';
-import { getCategoryById } from '../../constants/categories';
+import { findCategoryById, useCategoryStore } from '../../store/useCategoryStore';
 import { STRINGS } from '../../constants/strings';
 import { formatCurrency } from '../../utils/format';
 import { CategoryIcon } from '../ui/CategoryIcon';
@@ -23,7 +23,8 @@ export function ExpenseListItem({
   onCutoffFromHere,
 }: ExpenseListItemProps) {
   const [showMenu, setShowMenu] = useState(false);
-  const category = getCategoryById(expense.categoryId);
+  const { customCategories } = useCategoryStore();
+  const category = findCategoryById(expense.categoryId, customCategories);
   const isReal = expense.type === 'real';
   const isIncome = expense.type === 'income';
   const isTransferred = Boolean(expense.transferredAt);

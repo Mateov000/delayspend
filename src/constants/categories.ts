@@ -66,6 +66,14 @@ export const CATEGORIES: readonly Category[] = [
     textColor: 'text-rose-800',
   },
   {
+    id: 'aesthetics',
+    name: 'Estética & Cuidado Personal',
+    icon: 'Scissors',
+    color: 'bg-teal-100 text-teal-800 border-teal-200',
+    badgeBg: 'bg-teal-100',
+    textColor: 'text-teal-800',
+  },
+  {
     id: 'education',
     name: 'Cursos & Libros',
     icon: 'GraduationCap',

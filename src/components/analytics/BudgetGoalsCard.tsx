@@ -8,7 +8,7 @@ import {
   calculateCategoryWeeklySpending,
 } from '../../utils/budgetMetrics';
 import { formatCurrency } from '../../utils/format';
-import { CATEGORIES } from '../../constants/categories';
+import { useCategoryStore, getAllCategories } from '../../store/useCategoryStore';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { CalendarDays, Target, AlertTriangle, CheckCircle, Plus, ShieldCheck } from 'lucide-react';
 
@@ -24,6 +24,8 @@ export function BudgetGoalsCard({
   onNavigateToSettings,
 }: BudgetGoalsCardProps) {
   const { weeklyLimit, budgets } = useBudgetStore();
+  const { customCategories } = useCategoryStore();
+  const allCategories = useMemo(() => getAllCategories(customCategories), [customCategories]);
 
   // 1. Metricas de la semana actual (Global)
   const weeklyMetrics = useMemo(
@@ -180,7 +182,7 @@ export function BudgetGoalsCard({
 
               <div className="flex flex-col gap-2">
                 {categoryWeeklyProgress.map((item) => {
-                  const cat = CATEGORIES.find((c) => c.id === item.categoryId);
+                  const cat = allCategories.find((c) => c.id === item.categoryId);
                   if (!cat) return null;
 
                   return (
@@ -345,7 +347,7 @@ export function BudgetGoalsCard({
 
           <div className="flex flex-col gap-2">
             {categoryProgress.slice(0, 3).map((item) => {
-              const cat = CATEGORIES.find((c) => c.id === item.categoryId);
+              const cat = allCategories.find((c) => c.id === item.categoryId);
               if (!cat) return null;
 
               return (

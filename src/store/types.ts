@@ -1,6 +1,6 @@
 export type ExpenseType = 'real' | 'delayed' | 'income';
 
-export type CategoryId =
+export type BuiltInCategoryId =
   | 'food'
   | 'supermarket'
   | 'transport'
@@ -9,8 +9,11 @@ export type CategoryId =
   | 'tech'
   | 'subscriptions'
   | 'health'
+  | 'aesthetics'
   | 'education'
   | 'other';
+
+export type CategoryId = BuiltInCategoryId | (string & {});
 
 export interface Category {
   id: CategoryId;
@@ -19,6 +22,7 @@ export interface Category {
   color: string; // Clases Tailwind para bg y texto
   badgeBg: string;
   textColor: string;
+  isCustom?: boolean;
 }
 
 export interface Expense {

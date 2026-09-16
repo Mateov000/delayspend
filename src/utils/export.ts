@@ -1,5 +1,5 @@
 import { Expense, FinancialMetrics, Period, PeriodFilterState } from '../store/types';
-import { getCategoryById } from '../constants/categories';
+import { findCategoryById, useCategoryStore } from '../store/useCategoryStore';
 import { formatCurrency, formatDayMonth } from './format';
 import { STRINGS } from '../constants/strings';
 import { isExpenseMatchingFilter } from './date';
@@ -32,6 +32,7 @@ function getPeriodLabel(filter: PeriodFilterState, period?: Period | null): stri
 export interface ExportOptions {
   unified?: boolean;
   period?: Period | null;
+  maskedCategoryIds?: string[];
 }
 
 export function generateWhatsAppReport(
@@ -60,16 +61,19 @@ export function generateWhatsAppReport(
     if (filtered.length === 0) {
       lines.push('_(Sin gastos registrados en el período)_');
     } else {
+      const maskedIds = options?.maskedCategoryIds ?? useCategoryStore.getState().parentMaskedCategoryIds;
       const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
       for (const exp of sorted) {
-        const cat = getCategoryById(exp.categoryId);
+        const cat = findCategoryById(exp.categoryId);
+        const isMasked = unified && maskedIds.includes(exp.categoryId);
+        const catName = isMasked ? 'Otros Gastos' : cat.name;
         const totalAmount =
           exp.type === 'real'
             ? exp.amount + (exp.savedExtraAmount || 0)
             : exp.amount;
 
         lines.push(
-          `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(totalAmount)} [${cat.name}]`
+          `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(totalAmount)} [${catName}]`
         );
       }
     }
@@ -100,7 +104,7 @@ export function generateWhatsAppReport(
     lines.push('_(Sin gastos registrados en el período)_');
   } else {
     for (const exp of realExpenses) {
-      const cat = getCategoryById(exp.categoryId);
+      const cat = findCategoryById(exp.categoryId);
       const savingsInfo =
         exp.savedExtraAmount && exp.savedExtraAmount > 0
           ? ` (Ahorro opción barata: +${formatCurrency(exp.savedExtraAmount)})`
@@ -118,7 +122,7 @@ export function generateWhatsAppReport(
     lines.push('_(Sin compras delayeadas registradas)_');
   } else {
     for (const exp of delayedExpenses) {
-      const cat = getCategoryById(exp.categoryId);
+      const cat = findCategoryById(exp.categoryId);
       const statusText = exp.transferredAt ? '(Ya transferido ✅)' : '(Pendiente transferir ⏳)';
       lines.push(
         `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(exp.amount)} [${cat.name}] ${statusText}`
@@ -176,10 +180,13 @@ export function downloadExpensesCSV(
         'Fecha de Transferencia',
       ];
 
+  const maskedIds = options?.maskedCategoryIds ?? useCategoryStore.getState().parentMaskedCategoryIds;
   const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
 
   const rows = sorted.map((exp) => {
-    const cat = getCategoryById(exp.categoryId);
+    const cat = findCategoryById(exp.categoryId);
+    const isMasked = unified && maskedIds.includes(exp.categoryId);
+    const catName = isMasked ? 'Otros Gastos' : cat.name;
 
     if (unified) {
       const totalAmount =
@@ -190,7 +197,7 @@ export function downloadExpensesCSV(
       return [
         exp.date,
         totalAmount.toFixed(2),
-        cat.name,
+        catName,
         exp.description,
       ]
         .map((item) => escapeCSV(item ?? ''))

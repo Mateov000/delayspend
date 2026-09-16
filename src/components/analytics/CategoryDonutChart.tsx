@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Expense } from '../../store/types';
-import { CATEGORIES } from '../../constants/categories';
+import { useCategoryStore, findCategoryById } from '../../store/useCategoryStore';
 import { formatCurrency, formatDayMonth } from '../../utils/format';
 import { Tag, X } from 'lucide-react';
 
@@ -17,6 +17,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   tech: '#6366f1',
   subscriptions: '#06b6d4',
   health: '#f43f5e',
+  aesthetics: '#14b8a6',
   education: '#10b981',
   other: '#64748b',
 };
@@ -29,7 +30,14 @@ interface Slice {
   color: string;
 }
 
-function buildSlices(expenses: Expense[]): Slice[] {
+const CUSTOM_PALETTE = ['#0284c7', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#ea580c', '#4f46e5'];
+
+function getCategoryColor(categoryId: string, index: number): string {
+  if (CATEGORY_COLORS[categoryId]) return CATEGORY_COLORS[categoryId]!;
+  return CUSTOM_PALETTE[index % CUSTOM_PALETTE.length]!;
+}
+
+function buildSlices(expenses: Expense[], customCategories: import('../../store/types').Category[] = []): Slice[] {
   const totals = new Map<string, number>();
   for (const exp of expenses) {
     if (exp.type !== 'real') continue;
@@ -40,14 +48,14 @@ function buildSlices(expenses: Expense[]): Slice[] {
   if (grandTotal === 0) return [];
 
   return Array.from(totals.entries())
-    .map(([categoryId, amount]) => {
-      const cat = CATEGORIES.find((c) => c.id === categoryId);
+    .map(([categoryId, amount], idx) => {
+      const cat = findCategoryById(categoryId, customCategories);
       return {
         categoryId,
         name: cat?.name ?? 'Otros',
         amount,
         percentage: (amount / grandTotal) * 100,
-        color: CATEGORY_COLORS[categoryId] ?? '#64748b',
+        color: getCategoryColor(categoryId, idx),
       };
     })
     .sort((a, b) => b.amount - a.amount);
@@ -94,7 +102,8 @@ function computeArcs(
 
 export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
-  const slices = useMemo(() => buildSlices(expenses), [expenses]);
+  const { customCategories } = useCategoryStore();
+  const slices = useMemo(() => buildSlices(expenses, customCategories), [expenses, customCategories]);
 
   const totalReal = useMemo(
     () => expenses.filter((e) => e.type === 'real').reduce((s, e) => s + e.amount, 0),
