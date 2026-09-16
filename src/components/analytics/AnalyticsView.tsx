@@ -3,15 +3,17 @@ import { Expense, Period, PeriodFilterState } from '../../store/types';
 import { HistoricalSavingsCard } from './HistoricalSavingsCard';
 import { CategoryDonutChart } from './CategoryDonutChart';
 import { PeriodBarChart } from './PeriodBarChart';
+import { BudgetGoalsCard } from './BudgetGoalsCard';
 import { calculateHistoricalSavings } from '../../utils/historicalSavings';
 import { isExpenseMatchingFilter } from '../../utils/date';
-import { PiggyBank, PieChart, BarChart2 } from 'lucide-react';
+import { PiggyBank, PieChart, BarChart2, Target } from 'lucide-react';
 
 interface AnalyticsViewProps {
   expenses: Expense[];
   periods: Period[];
   activeFilter: PeriodFilterState;
   activePeriod: Period | null;
+  onNavigateToSettings?: () => void;
 }
 
 export function AnalyticsView({
@@ -19,6 +21,7 @@ export function AnalyticsView({
   periods,
   activeFilter,
   activePeriod,
+  onNavigateToSettings,
 }: AnalyticsViewProps) {
   const historicalSavings = useMemo(
     () => calculateHistoricalSavings(expenses, periods),
@@ -41,7 +44,23 @@ export function AnalyticsView({
         </div>
       </section>
 
-      {/* Sección 2: Distribución por categoría */}
+      {/* Sección 2: Seguimiento de Metas y Límites de Gasto */}
+      <section aria-label="Seguimiento de metas y límites">
+        <SectionHeader
+          icon={<Target className="w-4 h-4" />}
+          title="Metas y Límites de Gasto"
+          subtitle="Ritmo actual del ciclo y metas semanales"
+        />
+        <div className="mt-3">
+          <BudgetGoalsCard
+            expenses={expenses}
+            activePeriod={activePeriod}
+            onNavigateToSettings={onNavigateToSettings}
+          />
+        </div>
+      </section>
+
+      {/* Sección 3: Distribución por categoría */}
       <section aria-label="Distribución de gastos por categoría">
         <SectionHeader
           icon={<PieChart className="w-4 h-4" />}
@@ -53,13 +72,13 @@ export function AnalyticsView({
         </div>
       </section>
 
-      {/* Sección 3: Comparativa entre períodos */}
+      {/* Sección 4: Comparativa entre períodos */}
       {periods.length > 0 && (
         <section aria-label="Comparativa entre períodos">
           <SectionHeader
             icon={<BarChart2 className="w-4 h-4" />}
             title="Comparativa de períodos"
-            subtitle="Gastado real vs DelaySpend"
+            subtitle="Ingreso vs Gasto Real vs DelaySpend"
           />
           <div className="mt-3 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
             <PeriodBarChart expenses={expenses} periods={periods} />
@@ -92,4 +111,3 @@ function SectionHeader({ icon, title, subtitle }: SectionHeaderProps) {
     </div>
   );
 }
-

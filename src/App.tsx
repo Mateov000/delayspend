@@ -217,6 +217,7 @@ export default function App() {
             periods={periods}
             activeFilter={activeFilter}
             activePeriod={activePeriod}
+            onNavigateToSettings={() => setActiveTab('settings')}
           />
         )}
 
