@@ -1,24 +1,26 @@
 import { useState, useMemo } from 'react';
 import { Expense } from '../../store/types';
 import { formatCurrency } from '../../utils/format';
-import { ShoppingBag, RefreshCw, Zap, ChevronDown, ChevronUp, Layers } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Zap, Home, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 
 interface ExpenseNatureCardProps {
   expenses: Expense[];
 }
 
 export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
-  const [expandedSection, setExpandedSection] = useState<'fixed' | 'eventual' | null>(null);
+  const [expandedSection, setExpandedSection] = useState<'fixed' | 'eventual' | 'house' | null>(null);
 
   const metrics = useMemo(() => {
     let dailySpent = 0;
     let fixedSpent = 0;
     let eventualSpent = 0;
+    let houseSpent = 0;
     let totalDelayed = 0;
 
     const dailyItems: Expense[] = [];
     const fixedItems: Expense[] = [];
     const eventualItems: Expense[] = [];
+    const houseItems: Expense[] = [];
 
     for (const e of expenses) {
       if (e.type === 'income') continue;
@@ -31,6 +33,9 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
         } else if (nature === 'eventual') {
           eventualSpent += e.amount;
           eventualItems.push(e);
+        } else if (nature === 'house') {
+          houseSpent += e.amount;
+          houseItems.push(e);
         } else {
           dailySpent += e.amount;
           dailyItems.push(e);
@@ -44,10 +49,11 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
       }
     }
 
-    const totalRealSpent = dailySpent + fixedSpent + eventualSpent;
+    const totalRealSpent = dailySpent + fixedSpent + eventualSpent + houseSpent;
     const dailyPercent = totalRealSpent > 0 ? (dailySpent / totalRealSpent) * 100 : 0;
     const fixedPercent = totalRealSpent > 0 ? (fixedSpent / totalRealSpent) * 100 : 0;
     const eventualPercent = totalRealSpent > 0 ? (eventualSpent / totalRealSpent) * 100 : 0;
+    const housePercent = totalRealSpent > 0 ? (houseSpent / totalRealSpent) * 100 : 0;
 
     // Efectividad DelaySpend sobre los gastos cotidianos (los que son postergables)
     const dailyAccounted = dailySpent + totalDelayed;
@@ -62,10 +68,13 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
       dailyPercent,
       fixedPercent,
       eventualPercent,
+      houseSpent,
+      housePercent,
       delayEffectiveness,
       dailyItems,
       fixedItems,
       eventualItems,
+      houseItems,
     };
   }, [expenses]);
 
@@ -79,7 +88,7 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
     );
   }
 
-  const toggleSection = (section: 'fixed' | 'eventual') => {
+  const toggleSection = (section: 'fixed' | 'eventual' | 'house') => {
     setExpandedSection((prev) => (prev === section ? null : section));
   };
 
@@ -120,10 +129,15 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
             style={{ width: `${metrics.eventualPercent}%` }}
             title={`Eventuales: ${formatCurrency(metrics.eventualSpent)} (${metrics.eventualPercent.toFixed(0)}%)`}
           />
+          <div
+            className="bg-purple-500 h-full transition-all duration-300"
+            style={{ width: `${metrics.housePercent}%` }}
+            title={`Para la casa: ${formatCurrency(metrics.houseSpent)} (${metrics.housePercent.toFixed(0)}%)`}
+          />
         </div>
 
         {/* Leyenda de porcentajes de la barra */}
-        <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold px-0.5">
+        <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold px-0.5 flex-wrap gap-1">
           <span className="flex items-center gap-1 text-emerald-700">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
             Cotidianos {metrics.dailyPercent.toFixed(0)}%
@@ -136,11 +150,15 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
             <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
             Eventuales {metrics.eventualPercent.toFixed(0)}%
           </span>
+          <span className="flex items-center gap-1 text-purple-700">
+            <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />
+            Casa {metrics.housePercent.toFixed(0)}%
+          </span>
         </div>
       </div>
 
       {/* Grid de 3 pastillas interactivas */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {/* 1. Cotidianos */}
         <div className="flex flex-col justify-between p-3 rounded-xl bg-emerald-50/50 border border-emerald-200/60">
           <div className="flex items-center justify-between">
@@ -239,7 +257,48 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
               {formatCurrency(metrics.eventualSpent)}
             </span>
             <p className="text-[10px] text-amber-700/90 font-medium mt-1">
-              Peluquería, dentista, etc (esporádicos).
+              Peluquería, dentista, etc.
+            </p>
+          </div>
+        </div>
+
+        {/* 4. Para la casa */}
+        <div
+          onClick={() => metrics.houseItems.length > 0 && toggleSection('house')}
+          className={`flex flex-col justify-between p-3 rounded-xl border transition-all ${
+            metrics.houseItems.length > 0 ? 'cursor-pointer hover:border-purple-300' : ''
+          } ${
+            expandedSection === 'house'
+              ? 'bg-purple-50/80 border-purple-300 ring-2 ring-purple-400/20'
+              : 'bg-purple-50/40 border-purple-200/60'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+              <Home className="w-3.5 h-3.5 text-purple-600" />
+              <span>Casa</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-1.5 py-0.5 rounded-md">
+                {metrics.houseItems.length}
+              </span>
+              {metrics.houseItems.length > 0 && (
+                <span className="text-purple-600">
+                  {expandedSection === 'house' ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-base font-extrabold text-slate-900 leading-none">
+              {formatCurrency(metrics.houseSpent)}
+            </span>
+            <p className="text-[10px] text-purple-700/90 font-medium mt-1">
+              Compras para el hogar/familia.
             </p>
           </div>
         </div>
@@ -291,14 +350,37 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
         </div>
       )}
 
+      {/* Detalle expandible de gastos Para la casa */}
+      {expandedSection === 'house' && metrics.houseItems.length > 0 && (
+        <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-purple-50/50 border border-purple-200 text-xs">
+          <span className="font-bold text-purple-900 text-[11px] uppercase tracking-wider mb-0.5">
+            Detalle de Gastos Para la Casa
+          </span>
+          {metrics.houseItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between py-1 border-b border-purple-100 last:border-0"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <span className="text-slate-400 text-[10px]">{item.date.slice(5)}</span>
+                <span className="font-semibold text-slate-700 truncate">{item.description}</span>
+              </div>
+              <span className="font-bold text-purple-800 shrink-0 ml-2">
+                {formatCurrency(item.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Footer informativo de conclusión */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-100 gap-1.5">
         <span className="text-slate-600">
-          Compromisos e imprevistos consumieron{' '}
+          Casa, fijos e imprevistos consumieron{' '}
           <strong className="text-slate-800">
-            {formatCurrency(metrics.fixedSpent + metrics.eventualSpent)}
+            {formatCurrency(metrics.houseSpent + metrics.fixedSpent + metrics.eventualSpent)}
           </strong>{' '}
-          ({(metrics.fixedPercent + metrics.eventualPercent).toFixed(0)}% del total).
+          ({(metrics.housePercent + metrics.fixedPercent + metrics.eventualPercent).toFixed(0)}% del total).
         </span>
         {metrics.totalDelayed > 0 && (
           <span className="text-emerald-700 font-semibold shrink-0">

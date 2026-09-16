@@ -5,7 +5,7 @@ import { STRINGS } from '../../constants/strings';
 import { formatCurrency } from '../../utils/format';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { Badge } from '../ui/Badge';
-import { Tag, MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors, TrendingUp, RefreshCw, Zap } from 'lucide-react';
+import { Tag, MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors, TrendingUp, RefreshCw, Zap, Home } from 'lucide-react';
 
 interface ExpenseListItemProps {
   expense: Expense;
@@ -84,6 +84,14 @@ export function ExpenseListItem({
             {hasInstallments && expense.installmentNumber && expense.installmentTotal && (
               <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200/80 font-bold px-1.5 py-0.5 rounded-md">
                 💳 Cuota {expense.installmentNumber}/{expense.installmentTotal}
+              </span>
+            )}
+
+            {/* Gasto para la casa badge */}
+            {isReal && expense.nature === 'house' && (
+              <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200/80 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                <Home className="w-2.5 h-2.5" />
+                <span>Para la casa</span>
               </span>
             )}
 

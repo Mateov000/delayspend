@@ -1,6 +1,6 @@
 export type ExpenseType = 'real' | 'delayed' | 'income';
 
-export type ExpenseNature = 'daily' | 'fixed' | 'eventual';
+export type ExpenseNature = 'daily' | 'fixed' | 'eventual' | 'house';
 
 export type BuiltInCategoryId =
   | 'food'
@@ -45,7 +45,7 @@ export interface Expense {
   installmentNumber?: number | null; // Número de cuota (1, 2, 3...)
   installmentTotal?: number | null; // Total de cuotas del grupo
   isRecurring?: boolean; // Legacy / compatibilidad
-  nature?: ExpenseNature; // 'daily': cotidiano | 'fixed': fijo o recurrente | 'eventual': ocasional/esporádico
+  nature?: ExpenseNature; // 'daily': cotidiano | 'fixed': fijo | 'eventual': esporádico | 'house': para la casa
 }
 
 export interface Period {

@@ -42,6 +42,7 @@ export interface PeriodGoalMetrics {
   spentDaily: number;
   spentFixed: number;
   spentEventual: number;
+  spentHouse: number;
   delayed: number;
   totalAccounted: number;
   income: number;
@@ -187,7 +188,12 @@ export function calculateWeeklySpending(
   const daysRemaining = Math.max(1, 8 - daysPassed);
 
   const spentThisWeek = expenses
-    .filter((e) => e.type === 'real' && e.date >= start && e.date <= end)
+    .filter((e) => {
+      if (e.type !== 'real' || e.date < start || e.date > end) return false;
+      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
+      // La meta semanal es para gasto corriente: excluye fijos, eventuales y casa
+      return nature === 'daily';
+    })
     .reduce((acc, e) => acc + e.amount, 0);
 
   const limit = weeklyLimit && weeklyLimit > 0 ? weeklyLimit : null;
@@ -233,6 +239,7 @@ export function calculatePeriodGoalProgress(
   let spentDaily = 0;
   let spentFixed = 0;
   let spentEventual = 0;
+  let spentHouse = 0;
   let delayed = 0;
   let extraIncome = 0;
 
@@ -244,6 +251,8 @@ export function calculatePeriodGoalProgress(
         spentFixed += e.amount;
       } else if (nature === 'eventual') {
         spentEventual += e.amount;
+      } else if (nature === 'house') {
+        spentHouse += e.amount;
       } else {
         spentDaily += e.amount;
       }
@@ -283,6 +292,7 @@ export function calculatePeriodGoalProgress(
     spentDaily,
     spentFixed,
     spentEventual,
+    spentHouse,
     delayed,
     totalAccounted,
     income,

@@ -318,18 +318,33 @@ export function BudgetGoalsCard({
               </span>
             </div>
 
-            {/* Ritmo diario: Cotidiano (puro) vs Global y con Delay */}
-            <div className="flex flex-col gap-1 text-[10px] text-slate-500 bg-slate-50 px-2.5 py-2 rounded-xl border border-slate-100">
+            {/* Ritmo diario: Cotidiano puro (excluye fijos, eventuales y casa) */}
+            <div className="flex flex-col gap-1.5 text-[10px] text-slate-500 bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-200/70">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-700 flex items-center gap-1">
-                  🛒 Ritmo cotidiano:
+                <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                  <span>🛒</span>
+                  <span>Promedio diario corriente:</span>
                 </span>
-                <span className="font-bold text-slate-900 text-xs">
+                <span className="font-black text-emerald-800 text-sm">
                   {formatCurrency(periodGoal.dailyPaceAverage)} / día
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-slate-200/50">
-                <span>Promedio global: {formatCurrency(periodGoal.dailySpentAverage)}/d</span>
+
+              {(periodGoal.spentFixed > 0 || periodGoal.spentEventual > 0 || periodGoal.spentHouse > 0) && (
+                <div className="text-[10px] text-slate-500 flex items-center justify-between flex-wrap gap-1 pt-1 border-t border-slate-200/60">
+                  <span className="font-medium text-slate-600">
+                    Excluidos del promedio:
+                  </span>
+                  <div className="flex items-center gap-1.5 font-semibold text-slate-700 flex-wrap">
+                    {periodGoal.spentFixed > 0 && <span>🔄 Fijos: {formatCurrency(periodGoal.spentFixed)}</span>}
+                    {periodGoal.spentEventual > 0 && <span>⚡ Eventuales: {formatCurrency(periodGoal.spentEventual)}</span>}
+                    {periodGoal.spentHouse > 0 && <span>🏠 Casa: {formatCurrency(periodGoal.spentHouse)}</span>}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-slate-200/40">
+                <span>Promedio total con todo: {formatCurrency(periodGoal.dailySpentAverage)}/d</span>
                 <span>c/Delay: {formatCurrency(periodGoal.dailyTotalAverage)}/d</span>
               </div>
             </div>

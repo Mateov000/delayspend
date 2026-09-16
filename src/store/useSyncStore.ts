@@ -80,7 +80,7 @@ function mapRowToExpense(row: DbExpenseRow): Expense {
     installmentTotal: row.installment_total ?? null,
     isRecurring: (row.nature === 'fixed' || Boolean(row.is_recurring)) ? true : undefined,
     nature: expenseType === 'real'
-      ? ((row.nature === 'daily' || row.nature === 'fixed' || row.nature === 'eventual')
+      ? ((row.nature === 'daily' || row.nature === 'fixed' || row.nature === 'eventual' || row.nature === 'house')
           ? (row.nature as Expense['nature'])
           : (row.is_recurring ? 'fixed' : 'daily'))
       : undefined,

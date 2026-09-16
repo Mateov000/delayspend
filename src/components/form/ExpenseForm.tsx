@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Zap,
   ShoppingBag,
+  Home,
 } from 'lucide-react';
 
 interface ExpenseFormProps {
@@ -494,7 +495,7 @@ export function ExpenseForm({
         </div>
       )}
 
-      {/* Selector de Naturaleza de Gasto: Cotidiano / Fijo / Eventual (solo en gastos reales) */}
+      {/* Selector de Naturaleza de Gasto: Cotidiano / Fijo / Eventual / Para la casa (solo en gastos reales) */}
       {type === 'real' && (
         <div className="flex flex-col gap-2 p-3 bg-slate-50/80 border border-slate-200/80 rounded-2xl">
           <div className="flex items-center justify-between">
@@ -504,11 +505,12 @@ export function ExpenseForm({
             <span className="text-[10px] text-slate-500 font-medium">
               {nature === 'daily' && 'Impacta en el ritmo de consumo diario'}
               {nature === 'fixed' && 'No afecta ritmo diario · Compromiso mensual'}
-              {nature === 'eventual' && 'Gasto esporádico/necesario · Aislado de ritmo'}
+              {nature === 'eventual' && 'Gasto esporádico/personal · Aislado de ritmo'}
+              {nature === 'house' && 'Compras para el hogar · Detallado a padres'}
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
               type="button"
               onClick={() => setNature('daily')}
@@ -538,7 +540,7 @@ export function ExpenseForm({
                 <RefreshCw className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Fijo</span>
               </div>
-              <span className="text-[9px] font-normal text-slate-600 leading-tight">Alquiler, servicios</span>
+              <span className="text-[9px] font-normal text-slate-600 leading-tight">Alquiler, abonos</span>
             </button>
 
             <button
@@ -554,7 +556,23 @@ export function ExpenseForm({
                 <Zap className="w-3.5 h-3.5 text-amber-600" />
                 <span>Eventual</span>
               </div>
-              <span className="text-[9px] font-normal text-slate-600 leading-tight">Peluquería, salud, etc</span>
+              <span className="text-[9px] font-normal text-slate-600 leading-tight">Peluquería, salud</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setNature('house')}
+              className={`flex flex-col items-center justify-center p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                nature === 'house'
+                  ? 'bg-white text-purple-700 border-purple-300 shadow-xs ring-2 ring-purple-400/20'
+                  : 'bg-slate-100/70 text-slate-600 border-slate-200 hover:bg-slate-200/50'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Home className="w-3.5 h-3.5 text-purple-600" />
+                <span>Para la casa</span>
+              </div>
+              <span className="text-[9px] font-normal text-slate-600 leading-tight">Familia, artículos hogar</span>
             </button>
           </div>
         </div>

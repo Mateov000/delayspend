@@ -72,8 +72,9 @@ export function generateWhatsAppReport(
             ? exp.amount + (exp.savedExtraAmount || 0)
             : exp.amount;
 
+        const houseTag = exp.nature === 'house' ? ' 🏠 [Para la casa]' : '';
         lines.push(
-          `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(totalAmount)} [${catName}]`
+          `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(totalAmount)} [${catName}]${houseTag}`
         );
       }
     }
@@ -87,6 +88,12 @@ export function generateWhatsAppReport(
     lines.push(`${STRINGS.EXPORT_WHATSAPP_UNIFIED_TOTAL} ${formatCurrency(metrics.totalAccounted)}`);
     if (metrics.initialIncome > 0) {
       lines.push(`${STRINGS.EXPORT_WHATSAPP_REMAINING} ${formatCurrency(metrics.remainingBalance)}`);
+    }
+    const totalHouseUnified = filtered
+      .filter((e) => e.nature === 'house')
+      .reduce((sum, e) => sum + (e.type === 'real' ? e.amount + (e.savedExtraAmount || 0) : e.amount), 0);
+    if (totalHouseUnified > 0) {
+      lines.push(`🏠 Total destinado a la casa: ${formatCurrency(totalHouseUnified)}`);
     }
     lines.push('');
     lines.push(STRINGS.EXPORT_WHATSAPP_FOOTER);
@@ -109,8 +116,9 @@ export function generateWhatsAppReport(
         exp.savedExtraAmount && exp.savedExtraAmount > 0
           ? ` (Ahorro opción barata: +${formatCurrency(exp.savedExtraAmount)})`
           : '';
+      const houseTag = exp.nature === 'house' ? ' 🏠 [Para la casa]' : '';
       lines.push(
-        `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(exp.amount)} [${cat.name}]${savingsInfo}`
+        `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(exp.amount)} [${cat.name}]${houseTag}${savingsInfo}`
       );
     }
   }
@@ -199,6 +207,7 @@ export function downloadExpensesCSV(
         totalAmount.toFixed(2),
         catName,
         exp.description,
+        exp.nature === 'house' ? 'Sí' : 'No',
       ]
         .map((item) => escapeCSV(item ?? ''))
         .join(',');
@@ -218,6 +227,7 @@ export function downloadExpensesCSV(
       exp.amount.toFixed(2),
       cat.name,
       exp.description,
+      exp.nature === 'house' ? 'Sí' : 'No',
       transferStatus,
       exp.transferredAt ? exp.transferredAt.split('T')[0] : '',
     ]

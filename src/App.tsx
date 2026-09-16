@@ -22,6 +22,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { useSyncStore } from './store/useSyncStore';
 import { useToastStore } from './store/useToastStore';
 import { calculateMetrics } from './utils/metrics';
+import { calculatePeriodGoalProgress } from './utils/budgetMetrics';
 import { isExpenseMatchingFilter } from './utils/date';
 import { Expense, Period } from './store/types';
 import { STRINGS } from './constants/strings';
@@ -102,6 +103,7 @@ export default function App() {
 
   // Cálculo reactivo de métricas sobre el período seleccionado
   const metrics = calculateMetrics(expenses, activeFilter, activePeriod, periods);
+  const periodGoalProgress = calculatePeriodGoalProgress(expenses, activePeriod);
 
   // Manejo de altas y edición de gastos
   const handleOpenAdd = () => {
@@ -211,6 +213,7 @@ export default function App() {
               metrics={metrics}
               onTransferClick={handleTransferClick}
               isAllHistory={activeFilter.type === 'all'}
+              dailyPaceAverage={periodGoalProgress?.dailyPaceAverage}
             />
 
             {/* Historial Agrupado por Fecha */}

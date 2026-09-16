@@ -9,9 +9,15 @@ interface SummaryCardsProps {
   metrics: FinancialMetrics;
   onTransferClick: () => void;
   isAllHistory?: boolean;
+  dailyPaceAverage?: number;
 }
 
-export function SummaryCards({ metrics, onTransferClick, isAllHistory = false }: SummaryCardsProps) {
+export function SummaryCards({
+  metrics,
+  onTransferClick,
+  isAllHistory = false,
+  dailyPaceAverage,
+}: SummaryCardsProps) {
   const hasIncome = metrics.initialIncome > 0;
 
   return (
@@ -93,11 +99,20 @@ export function SummaryCards({ metrics, onTransferClick, isAllHistory = false }:
               </span>
             </div>
 
-            <span className="text-[10px] font-semibold text-slate-400">
-              {metrics.initialIncome > 0
-                ? `${Math.round(((metrics.totalReal + metrics.totalDelayed) / metrics.initialIncome) * 100)}% usado`
-                : ''}
-            </span>
+            {dailyPaceAverage !== undefined && dailyPaceAverage > 0 && !isAllHistory ? (
+              <span
+                className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-400/30"
+                title="Ritmo diario de gasto corriente (excluye fijos, eventuales y casa)"
+              >
+                🛒 {formatCurrency(dailyPaceAverage)} / día
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold text-slate-400">
+                {metrics.initialIncome > 0
+                  ? `${Math.round(((metrics.totalReal + metrics.totalDelayed) / metrics.initialIncome) * 100)}% usado`
+                  : ''}
+              </span>
+            )}
           </div>
         </div>
       )}

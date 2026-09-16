@@ -76,7 +76,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
   const rawNature = item.nature;
   let nature: ExpenseNature | undefined = undefined;
   if (item.type === 'real') {
-    if (rawNature === 'daily' || rawNature === 'fixed' || rawNature === 'eventual') {
+    if (rawNature === 'daily' || rawNature === 'fixed' || rawNature === 'eventual' || rawNature === 'house') {
       nature = rawNature;
     } else if (item.isRecurring) {
       nature = 'fixed';
