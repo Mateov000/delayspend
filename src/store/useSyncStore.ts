@@ -29,8 +29,12 @@ interface DbExpenseRow {
   date: string;
   transferred_at: string | null;
   period_id?: string | null;
-  saved_extra_amount?: number;
+  saved_extra_amount?: number | null;
   linked_expense_id?: string | null;
+  tags?: string[] | null;
+  installment_group_id?: string | null;
+  installment_number?: number | null;
+  installment_total?: number | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -50,6 +54,11 @@ interface DbPeriodRow {
 }
 
 function mapRowToExpense(row: DbExpenseRow): Expense {
+  const savedExtra =
+    row.saved_extra_amount && Number(row.saved_extra_amount) > 0
+      ? Number(row.saved_extra_amount)
+      : undefined;
+
   return {
     id: row.id,
     type: row.type === 'real' ? 'real' : 'delayed',
@@ -58,9 +67,12 @@ function mapRowToExpense(row: DbExpenseRow): Expense {
     categoryId: row.category_id as Expense['categoryId'],
     date: row.date,
     transferredAt: row.transferred_at,
-    periodId: row.period_id || null,
-    savedExtraAmount: row.saved_extra_amount ? Number(row.saved_extra_amount) : undefined,
-    linkedExpenseId: row.linked_expense_id || null,
+    periodId: row.period_id ?? null,
+    savedExtraAmount: savedExtra,
+    tags: Array.isArray(row.tags) && row.tags.length > 0 ? row.tags : undefined,
+    installmentGroupId: row.installment_group_id ?? null,
+    installmentNumber: row.installment_number ?? null,
+    installmentTotal: row.installment_total ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -73,10 +85,32 @@ function mapRowToPeriod(row: DbPeriodRow): Period {
     startDate: row.start_date,
     endDate: row.end_date,
     initialIncome: Number(row.initial_income) || 0,
-    cutoffExpenseId: row.cutoff_expense_id || null,
+    cutoffExpenseId: row.cutoff_expense_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
+  };
+}
+
+function mapExpenseToRow(expense: Expense, userId: string): Omit<DbExpenseRow, 'deleted_at'> {
+  return {
+    id: expense.id,
+    user_id: userId,
+    type: expense.type,
+    amount: expense.amount,
+    description: expense.description,
+    category_id: expense.categoryId,
+    date: expense.date,
+    transferred_at: expense.transferredAt,
+    period_id: expense.periodId ?? null,
+    saved_extra_amount: expense.savedExtraAmount ?? null,
+    linked_expense_id: null,
+    tags: expense.tags && expense.tags.length > 0 ? expense.tags : null,
+    installment_group_id: expense.installmentGroupId ?? null,
+    installment_number: expense.installmentNumber ?? null,
+    installment_total: expense.installmentTotal ?? null,
+    created_at: expense.createdAt,
+    updated_at: expense.updatedAt,
   };
 }
 
@@ -94,7 +128,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       return () => {};
     }
 
-    // Registrar sincronizadores de acciones locales de gastos y períodos
+    // Registrar sincronizadores de acciones locales
     registerSyncListener((action, item) => {
       if (action === 'push') {
         get().pushExpense(item as Expense, userId);
@@ -123,25 +157,18 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Cargar datos remotos y fusionar (merge bidireccional)
     get().syncAllWithCloud(userId);
 
-    // Canales WebSocket Realtime
     let expenseChannel: RealtimeChannel | null = null;
     let periodChannel: RealtimeChannel | null = null;
 
     try {
-      // 1. Canal de Gastos
+      // Canal de Gastos
       expenseChannel = supabase
         .channel(`user_expenses_${userId}`)
         .on(
           'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'expenses',
-            filter: `user_id=eq.${userId}`,
-          },
+          { event: '*', schema: 'public', table: 'expenses', filter: `user_id=eq.${userId}` },
           (payload) => {
             const { expenses } = useExpenseStore.getState();
 
@@ -159,9 +186,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
                     useExpenseStore.getState().updateExpense(incoming.id, incoming);
                   }
                 } else {
-                  useExpenseStore.setState({
-                    expenses: [incoming, ...expenses],
-                  });
+                  useExpenseStore.setState({ expenses: [incoming, ...expenses] });
                 }
               }
             } else if (payload.eventType === 'DELETE') {
@@ -176,17 +201,12 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         )
         .subscribe();
 
-      // 2. Canal de Períodos
+      // Canal de Períodos
       periodChannel = supabase
         .channel(`user_periods_${userId}`)
         .on(
           'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'periods',
-            filter: `user_id=eq.${userId}`,
-          },
+          { event: '*', schema: 'public', table: 'periods', filter: `user_id=eq.${userId}` },
           (payload) => {
             const { periods } = usePeriodStore.getState();
 
@@ -204,9 +224,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
                     usePeriodStore.getState().updatePeriod(incoming.id, incoming);
                   }
                 } else {
-                  usePeriodStore.setState({
-                    periods: [incoming, ...periods],
-                  });
+                  usePeriodStore.setState({ periods: [incoming, ...periods] });
                 }
               }
             } else if (payload.eventType === 'DELETE') {
@@ -252,9 +270,11 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
       if (expError) throw expError;
 
+      // Filtrar registros legacy con linked_expense_id
       const remoteExpenses = (remoteRows as DbExpenseRow[])
         .filter((r) => !r.linked_expense_id)
         .map(mapRowToExpense);
+
       const localExpenses = useExpenseStore.getState().expenses;
 
       const mergedExpensesMap = new Map<string, Expense>();
@@ -275,22 +295,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       }
 
       if (expensesToUpload.length > 0) {
-        const payload = expensesToUpload.map((e) => ({
-          id: e.id,
-          user_id: userId,
-          type: e.type,
-          amount: e.amount,
-          description: e.description,
-          category_id: e.categoryId,
-          date: e.date,
-          transferred_at: e.transferredAt,
-          period_id: e.periodId || null,
-          saved_extra_amount: e.savedExtraAmount || 0,
-          linked_expense_id: e.linkedExpenseId || null,
-          created_at: e.createdAt,
-          updated_at: e.updatedAt,
-        }));
-
+        const payload = expensesToUpload.map((e) => mapExpenseToRow(e, userId));
         await supabase.from('expenses').upsert(payload);
       }
 
@@ -336,7 +341,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           start_date: p.startDate,
           end_date: p.endDate,
           initial_income: p.initialIncome,
-          cutoff_expense_id: p.cutoffExpenseId || null,
+          cutoff_expense_id: p.cutoffExpenseId ?? null,
           created_at: p.createdAt,
           updated_at: p.updatedAt,
         }));
@@ -357,21 +362,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   pushExpense: async (expense: Expense, userId: string) => {
     if (!isSupabaseConfigured || !navigator.onLine) return;
     try {
-      await supabase.from('expenses').upsert({
-        id: expense.id,
-        user_id: userId,
-        type: expense.type,
-        amount: expense.amount,
-        description: expense.description,
-        category_id: expense.categoryId,
-        date: expense.date,
-        transferred_at: expense.transferredAt,
-        period_id: expense.periodId || null,
-        saved_extra_amount: expense.savedExtraAmount || 0,
-        linked_expense_id: expense.linkedExpenseId || null,
-        created_at: expense.createdAt,
-        updated_at: expense.updatedAt,
-      });
+      await supabase.from('expenses').upsert(mapExpenseToRow(expense, userId));
       set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
     } catch {
       set({ status: 'offline' });
@@ -402,7 +393,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         start_date: period.startDate,
         end_date: period.endDate,
         initial_income: period.initialIncome,
-        cutoff_expense_id: period.cutoffExpenseId || null,
+        cutoff_expense_id: period.cutoffExpenseId ?? null,
         created_at: period.createdAt,
         updated_at: period.updatedAt,
       });

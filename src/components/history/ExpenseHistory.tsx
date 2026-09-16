@@ -1,10 +1,11 @@
+import { useState, useMemo } from 'react';
 import { Expense, Period } from '../../store/types';
 import { groupExpensesByDate } from '../../utils/date';
 import { ExpenseHistoryGroup } from './ExpenseHistoryGroup';
 import { EmptyState } from '../ui/EmptyState';
 import { STRINGS } from '../../constants/strings';
 import { formatCurrency, formatDayMonth } from '../../utils/format';
-import { ArrowDownLeft } from 'lucide-react';
+import { ArrowDownLeft, Tag, X } from 'lucide-react';
 
 interface ExpenseHistoryProps {
   expenses: Expense[];
@@ -23,8 +24,21 @@ export function ExpenseHistory({
   onToggleTransfer,
   onCutoffFromHere,
 }: ExpenseHistoryProps) {
-  const groups = groupExpensesByDate(expenses);
-  const showIncomeMilestone = Boolean(period && period.initialIncome > 0);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+
+  // Tags disponibles en la lista actual de gastos
+  const availableTags = useMemo(() => {
+    return Array.from(new Set(expenses.flatMap((e) => e.tags ?? []))).sort();
+  }, [expenses]);
+
+  // Filtrado reactivo por tag seleccionado
+  const displayedExpenses = useMemo(() => {
+    if (!selectedTag) return expenses;
+    return expenses.filter((e) => e.tags?.includes(selectedTag));
+  }, [expenses, selectedTag]);
+
+  const groups = groupExpensesByDate(displayedExpenses);
+  const showIncomeMilestone = Boolean(period && period.initialIncome > 0 && !selectedTag);
 
   return (
     <div className="flex flex-col gap-4 mt-6">
@@ -33,9 +47,45 @@ export function ExpenseHistory({
           {STRINGS.HISTORY_TITLE}
         </h2>
         <span className="text-xs text-slate-400 font-medium">
-          {expenses.length} {expenses.length === 1 ? 'registro' : 'registros'}
+          {displayedExpenses.length} {displayedExpenses.length === 1 ? 'registro' : 'registros'}
         </span>
       </div>
+
+      {/* Filtro de etiquetas horizontales (sólo visible si hay gastos con tags) */}
+      {availableTags.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mt-1 no-scrollbar">
+          <button
+            type="button"
+            onClick={() => setSelectedTag(null)}
+            className={`text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 transition-colors cursor-pointer ${
+              selectedTag === null
+                ? 'bg-slate-800 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Todos
+          </button>
+          {availableTags.map((tag) => {
+            const isSelected = selectedTag === tag;
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setSelectedTag(isSelected ? null : tag)}
+                className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60'
+                }`}
+              >
+                <Tag className="w-3 h-3" />
+                <span>{tag}</span>
+                {isSelected && <X className="w-3 h-3 ml-0.5" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Tarjeta hito de ingreso inicial asignado al ciclo */}
       {showIncomeMilestone && period && (
@@ -78,4 +128,3 @@ export function ExpenseHistory({
     </div>
   );
 }
-

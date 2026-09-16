@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Expense, ExpenseInput, ExpenseType, CategoryId } from './types';
 import { generateId } from '../utils/id';
+import { generateFutureInstallments } from '../utils/installments';
 
 export interface ExpenseState {
   expenses: Expense[];
@@ -32,7 +33,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
   if (typeof item.id !== 'string' || !item.id) return null;
   if (item.type !== 'real' && item.type !== 'delayed') return null;
 
-  // Limpiar/ignorar cualquier registro fantasma complementario antiguo
+  // Descartar registros legacy complementarios (linkedExpenseId seteado)
   if (item.linkedExpenseId) return null;
 
   const amount = Number(item.amount);
@@ -41,14 +42,36 @@ function sanitizeExpense(raw: unknown): Expense | null {
   const description = typeof item.description === 'string' ? item.description.trim() : '';
   const categoryId = (typeof item.categoryId === 'string' ? item.categoryId : 'other') as CategoryId;
   const date = typeof item.date === 'string' && item.date ? item.date : new Date().toISOString().split('T')[0]!;
-  const transferredAt = typeof item.transferredAt === 'string' ? item.transferredAt : null;
   const createdAt = typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString();
   const updatedAt = typeof item.updatedAt === 'string' ? item.updatedAt : createdAt;
   const periodId = typeof item.periodId === 'string' && item.periodId ? item.periodId : null;
+
+  const rawSaved = item.savedExtraAmount;
   const savedExtraAmount =
-    typeof item.savedExtraAmount === 'number' && item.savedExtraAmount > 0
-      ? Math.round(item.savedExtraAmount * 100) / 100
+    typeof rawSaved === 'number' && rawSaved > 0
+      ? Math.round(rawSaved * 100) / 100
       : undefined;
+
+  // transferredAt: gastos 'real' solo aplica si tienen savedExtraAmount
+  const rawTransferredAt = typeof item.transferredAt === 'string' ? item.transferredAt : null;
+  const transferredAt =
+    item.type === 'real' && !savedExtraAmount ? null : rawTransferredAt;
+
+  // Tags: array de strings
+  const rawTags = item.tags;
+  const tags: string[] = Array.isArray(rawTags)
+    ? rawTags.filter((t): t is string => typeof t === 'string' && t.length > 0)
+    : [];
+
+  // Cuotas
+  const installmentGroupId =
+    typeof item.installmentGroupId === 'string' && item.installmentGroupId
+      ? item.installmentGroupId
+      : null;
+  const installmentNumber =
+    typeof item.installmentNumber === 'number' ? item.installmentNumber : null;
+  const installmentTotal =
+    typeof item.installmentTotal === 'number' ? item.installmentTotal : null;
 
   return {
     id: item.id,
@@ -57,11 +80,15 @@ function sanitizeExpense(raw: unknown): Expense | null {
     description,
     categoryId,
     date,
-    transferredAt: item.type === 'real' && !savedExtraAmount ? null : transferredAt,
+    transferredAt,
     createdAt,
     updatedAt,
     periodId,
     savedExtraAmount,
+    tags: tags.length > 0 ? tags : undefined,
+    installmentGroupId,
+    installmentNumber,
+    installmentTotal,
   };
 }
 
@@ -72,14 +99,23 @@ export const useExpenseStore = create<ExpenseState>()(
 
       addExpense: (input: ExpenseInput) => {
         const now = new Date().toISOString();
-        const expenseId = generateId();
         const savedExtra =
           input.type === 'real' && input.savedExtraAmount && input.savedExtraAmount > 0
             ? Math.round(Number(input.savedExtraAmount) * 100) / 100
             : undefined;
 
+        const tags = input.tags && input.tags.length > 0 ? input.tags : undefined;
+
+        // Si hay cuotas, generamos un groupId compartido
+        const hasInstallments =
+          input.type === 'real' &&
+          input.installmentTotal !== null &&
+          input.installmentTotal !== undefined &&
+          input.installmentTotal > 1;
+        const installmentGroupId = hasInstallments ? (input.installmentGroupId ?? generateId()) : null;
+
         const newExpense: Expense = {
-          id: expenseId,
+          id: generateId(),
           type: input.type,
           amount: Math.round(Number(input.amount) * 100) / 100,
           description: input.description.trim(),
@@ -90,13 +126,30 @@ export const useExpenseStore = create<ExpenseState>()(
           updatedAt: now,
           periodId: input.periodId ?? null,
           savedExtraAmount: savedExtra,
+          tags,
+          installmentGroupId,
+          installmentNumber: hasInstallments ? (input.installmentNumber ?? 1) : null,
+          installmentTotal: hasInstallments ? input.installmentTotal : null,
         };
 
+        // Generar cuotas futuras (delayed) si es un pago en cuotas
+        const futureInstallments = hasInstallments
+          ? generateFutureInstallments(newExpense, input, now)
+          : [];
+
         set((state) => ({
-          expenses: [newExpense, ...state.expenses.filter((e) => !e.linkedExpenseId)],
+          expenses: [
+            newExpense,
+            ...futureInstallments,
+            ...state.expenses.filter((e) => !e.linkedExpenseId),
+          ],
         }));
 
         syncListener?.('push', newExpense);
+        for (const inst of futureInstallments) {
+          syncListener?.('push', inst);
+        }
+
         return newExpense;
       },
 
@@ -114,13 +167,15 @@ export const useExpenseStore = create<ExpenseState>()(
                 ? Math.round(Number(input.amount) * 100) / 100
                 : expense.amount;
             const updatedDesc =
-              input.description !== undefined
-                ? input.description.trim()
-                : expense.description;
+              input.description !== undefined ? input.description.trim() : expense.description;
             const updatedCat = input.categoryId ?? expense.categoryId;
             const updatedDate = input.date ?? expense.date;
             const updatedPeriodId =
               input.periodId !== undefined ? input.periodId : expense.periodId;
+            const updatedTags =
+              input.tags !== undefined
+                ? (input.tags.length > 0 ? input.tags : undefined)
+                : expense.tags;
 
             // Manejo estricto de remoción o actualización del sobreprecio ahorrado
             let updatedSavedExtra: number | undefined = expense.savedExtraAmount;
@@ -139,6 +194,20 @@ export const useExpenseStore = create<ExpenseState>()(
               updatedSavedExtra = undefined;
             }
 
+            // Cuotas
+            const updatedInstallmentGroupId =
+              input.installmentGroupId !== undefined
+                ? input.installmentGroupId
+                : expense.installmentGroupId;
+            const updatedInstallmentNumber =
+              input.installmentNumber !== undefined
+                ? input.installmentNumber
+                : expense.installmentNumber;
+            const updatedInstallmentTotal =
+              input.installmentTotal !== undefined
+                ? input.installmentTotal
+                : expense.installmentTotal;
+
             updatedItem = {
               ...expense,
               type: updatedType,
@@ -150,6 +219,10 @@ export const useExpenseStore = create<ExpenseState>()(
               savedExtraAmount: updatedSavedExtra,
               transferredAt:
                 updatedType === 'real' && !updatedSavedExtra ? null : expense.transferredAt,
+              tags: updatedTags,
+              installmentGroupId: updatedInstallmentGroupId,
+              installmentNumber: updatedInstallmentNumber,
+              installmentTotal: updatedInstallmentTotal,
               updatedAt: now,
             };
 
@@ -164,9 +237,10 @@ export const useExpenseStore = create<ExpenseState>()(
 
       deleteExpense: (id: string) => {
         set((state) => ({
-          expenses: state.expenses.filter((expense) => expense.id !== id && !expense.linkedExpenseId),
+          expenses: state.expenses.filter(
+            (expense) => expense.id !== id && expense.linkedExpenseId !== id
+          ),
         }));
-
         syncListener?.('delete', id);
       },
 
@@ -177,11 +251,7 @@ export const useExpenseStore = create<ExpenseState>()(
         set((state) => ({
           expenses: state.expenses.map((exp) => {
             if (expenseIds.includes(exp.id)) {
-              const updated = {
-                ...exp,
-                periodId,
-                updatedAt: now,
-              };
+              const updated = { ...exp, periodId, updatedAt: now };
               updatedList.push(updated);
               return updated;
             }
@@ -207,11 +277,7 @@ export const useExpenseStore = create<ExpenseState>()(
               expense.transferredAt === null;
 
             if (isPendingDelayed || isPendingRealSavings) {
-              const updated = {
-                ...expense,
-                transferredAt: now,
-                updatedAt: now,
-              };
+              const updated = { ...expense, transferredAt: now, updatedAt: now };
               updatedList.push(updated);
               return updated;
             }

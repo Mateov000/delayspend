@@ -5,7 +5,7 @@ import { STRINGS } from '../../constants/strings';
 import { formatCurrency } from '../../utils/format';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { Badge } from '../ui/Badge';
-import { MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors } from 'lucide-react';
+import { Tag, MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors } from 'lucide-react';
 
 interface ExpenseListItemProps {
   expense: Expense;
@@ -27,6 +27,11 @@ export function ExpenseListItem({
   const isReal = expense.type === 'real';
   const isTransferred = Boolean(expense.transferredAt);
   const hasCheaperSavings = Boolean(isReal && expense.savedExtraAmount && expense.savedExtraAmount > 0);
+  const canTransfer = !isReal || hasCheaperSavings;
+  const hasInstallments = Boolean(
+    expense.installmentGroupId && expense.installmentTotal && expense.installmentTotal > 1
+  );
+  const hasTags = Boolean(expense.tags && expense.tags.length > 0);
 
   return (
     <div className="relative flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition-colors">
@@ -43,10 +48,9 @@ export function ExpenseListItem({
             {expense.description}
           </span>
 
+          {/* Badges row */}
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span className="text-[11px] font-medium text-slate-400">
-              {category.name}
-            </span>
+            <span className="text-[11px] font-medium text-slate-400">{category.name}</span>
 
             <span className="text-slate-300">•</span>
 
@@ -54,6 +58,14 @@ export function ExpenseListItem({
               {isReal ? STRINGS.HISTORY_BADGE_REAL : STRINGS.HISTORY_BADGE_DELAYED}
             </Badge>
 
+            {/* Cuota badge */}
+            {hasInstallments && expense.installmentNumber && expense.installmentTotal && (
+              <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200/80 font-bold px-1.5 py-0.5 rounded-md">
+                💳 Cuota {expense.installmentNumber}/{expense.installmentTotal}
+              </span>
+            )}
+
+            {/* Ahorro opción más barata */}
             {hasCheaperSavings && (
               <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
                 <span>💡 {STRINGS.HISTORY_BADGE_SAVINGS_EXTRA}</span>
@@ -62,7 +74,7 @@ export function ExpenseListItem({
             )}
 
             {/* Transfer status badge */}
-            {(!isReal || hasCheaperSavings) && (
+            {canTransfer && (
               <button
                 type="button"
                 onClick={() => onToggleTransfer(expense.id)}
@@ -90,10 +102,28 @@ export function ExpenseListItem({
               </button>
             )}
           </div>
+
+          {/* Tags row */}
+          {hasTags && (
+            <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+              {expense.tags!.slice(0, 4).map((tag) => (
+                <span
+                  key={tag}
+                  className="flex items-center gap-0.5 text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full font-medium"
+                >
+                  <Tag className="w-2 h-2" />
+                  {tag}
+                </span>
+              ))}
+              {expense.tags!.length > 4 && (
+                <span className="text-[10px] text-slate-400">+{expense.tags!.length - 4}</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Right: Amount & Actions */}
+      {/* Right: Amount & Action Menu Trigger */}
       <div className="flex items-center gap-2 shrink-0">
         <div className="flex flex-col items-end">
           <span
@@ -101,6 +131,7 @@ export function ExpenseListItem({
               isReal ? 'text-slate-900' : 'text-emerald-700 font-extrabold'
             }`}
           >
+            {isReal ? '-' : '+'}
             {formatCurrency(expense.amount)}
           </span>
           {hasCheaperSavings && (
@@ -124,10 +155,8 @@ export function ExpenseListItem({
           {/* Menú Flotante */}
           {showMenu && (
             <>
-              <div
-                className="fixed inset-0 z-20"
-                onClick={() => setShowMenu(false)}
-              />
+              {/* Backdrop for closing menu */}
+              <div className="fixed inset-0 z-20" onClick={() => setShowMenu(false)} />
 
               <div className="absolute right-0 top-8 z-30 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">
                 <button
@@ -156,7 +185,7 @@ export function ExpenseListItem({
                   </button>
                 )}
 
-                {(!isReal || hasCheaperSavings) && (
+                {canTransfer && (
                   <button
                     type="button"
                     onClick={() => {

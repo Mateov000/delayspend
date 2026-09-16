@@ -33,7 +33,11 @@ export interface Expense {
   updatedAt: string; // ISO 8601 de última edición
   periodId?: string | null; // ID opcional del período al que pertenece
   savedExtraAmount?: number; // Monto extra ahorrado por optar por una alternativa más barata
-  linkedExpenseId?: string | null; // ID del gasto real asociado si este registro es un ahorro derivado
+  linkedExpenseId?: string | null; // Legacy: ID del gasto real asociado — ignorado en sync
+  tags?: string[]; // Etiquetas libres para agrupar por evento/contexto
+  installmentGroupId?: string | null; // UUID compartido por todas las cuotas del mismo grupo
+  installmentNumber?: number | null; // Número de cuota (1, 2, 3...)
+  installmentTotal?: number | null; // Total de cuotas del grupo
 }
 
 export interface Period {
@@ -58,15 +62,15 @@ export interface PeriodFilterState {
 }
 
 export interface FinancialMetrics {
-  totalReal: number;        // Suma de gastos reales en el período
-  totalDelayed: number;     // Suma de gastos delayeados en el período
-  pendingTransfer: number;  // Delayeados sin transferir (transferredAt === null)
-  totalTransferred: number; // Delayeados ya transferidos (transferredAt !== null)
-  totalAccounted: number;   // Total a rendir (real + delayed)
+  totalReal: number;           // Suma de gastos reales en el período
+  totalDelayed: number;        // Suma de gastos delayeados en el período (delayed + savedExtraAmount)
+  pendingTransfer: number;     // Delayeados sin transferir (transferredAt === null)
+  totalTransferred: number;    // Delayeados ya transferidos (transferredAt !== null)
+  totalAccounted: number;      // Total a rendir (real + delayed)
   delayRatePercentage: number; // (totalDelayed / totalAccounted) * 100
-  initialIncome: number;    // Ingreso asignado al período (ej: $50.000)
-  remainingBalance: number; // initialIncome - totalReal - totalDelayed (plata disponible restando gastos reales y delay spend)
-  freeBalance: number;      // initialIncome - totalReal - totalDelayed
+  initialIncome: number;       // Ingreso asignado al período (ej: $50.000)
+  remainingBalance: number;    // initialIncome - totalAccounted (saldo disponible restando real y delay)
+  freeBalance: number;         // initialIncome - totalAccounted
 }
 
 export interface ExpenseInput {
@@ -78,5 +82,8 @@ export interface ExpenseInput {
   periodId?: string | null;
   savedExtraAmount?: number | null;
   linkedExpenseId?: string | null;
+  tags?: string[];
+  installmentGroupId?: string | null;
+  installmentNumber?: number | null;
+  installmentTotal?: number | null;
 }
-

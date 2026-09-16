@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Layout } from './components/layout/Layout';
 import { Header } from './components/layout/Header';
+import { BottomTabBar, TabId } from './components/layout/BottomTabBar';
 import { PeriodFilter } from './components/dashboard/PeriodFilter';
 import { SummaryCards } from './components/dashboard/SummaryCards';
 import { ExpenseHistory } from './components/history/ExpenseHistory';
@@ -12,6 +13,8 @@ import { NewPeriodModal } from './components/period/NewPeriodModal';
 import { EditPeriodModal } from './components/period/EditPeriodModal';
 import { ConfirmDialog } from './components/ui/ConfirmDialog';
 import { Toaster } from './components/ui/Toaster';
+import { AnalyticsView } from './components/analytics/AnalyticsView';
+import { SettingsView } from './components/settings/SettingsView';
 import { useExpenseStore } from './store/useExpenseStore';
 import { useFilterStore } from './store/useFilterStore';
 import { usePeriodStore } from './store/usePeriodStore';
@@ -33,6 +36,7 @@ export default function App() {
 
   const { activeFilter, setFilterType } = useFilterStore();
   const {
+    periods,
     setActivePeriodId,
     getActivePeriod,
     undoLastCutoff,
@@ -55,6 +59,9 @@ export default function App() {
     const unsubSync = initializeSync(user?.id ?? null);
     return () => unsubSync();
   }, [user?.id, initializeSync]);
+
+  // Navegación por pestañas
+  const [activeTab, setActiveTab] = useState<TabId>('home');
 
   // Estados de modales
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
@@ -171,33 +178,56 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
       />
 
-      <main className="flex-1 px-4 py-4 flex flex-col">
-        {/* Selector de Períodos: Ciclos abiertos / cerrados / históricos */}
-        <PeriodFilter
-          onOpenNewPeriod={() => {
-            setCutoffCandidateExpense(null);
-            setIsNewPeriodOpen(true);
-          }}
-          onOpenEditPeriod={() => setIsEditPeriodOpen(true)}
-          onUndoCutoff={() => setIsConfirmUndoCutoffOpen(true)}
-        />
+      <main className="flex-1 flex flex-col">
+        {/* ===================== PESTAÑA: INICIO ===================== */}
+        {activeTab === 'home' && (
+          <div className="px-4 py-4 flex flex-col">
+            {/* Selector de Períodos */}
+            <PeriodFilter
+              onOpenNewPeriod={() => {
+                setCutoffCandidateExpense(null);
+                setIsNewPeriodOpen(true);
+              }}
+              onOpenEditPeriod={() => setIsEditPeriodOpen(true)}
+              onUndoCutoff={() => setIsConfirmUndoCutoffOpen(true)}
+            />
 
-        {/* Bloque Superior de Métricas (incluye Métrica Estrella y botón de transferencia) */}
-        <SummaryCards
-          metrics={metrics}
-          onTransferClick={handleTransferClick}
-        />
+            {/* Bloque Superior de Métricas */}
+            <SummaryCards
+              metrics={metrics}
+              onTransferClick={handleTransferClick}
+            />
 
-        {/* Historial Agrupado por Fecha */}
-        <ExpenseHistory
-          expenses={filteredExpenses}
-          period={activePeriod}
-          onEdit={handleEdit}
-          onDelete={handleDeleteRequest}
-          onToggleTransfer={handleToggleTransfer}
-          onCutoffFromHere={handleCutoffFromExpense}
-        />
+            {/* Historial Agrupado por Fecha */}
+            <ExpenseHistory
+              expenses={filteredExpenses}
+              period={activePeriod}
+              onEdit={handleEdit}
+              onDelete={handleDeleteRequest}
+              onToggleTransfer={handleToggleTransfer}
+              onCutoffFromHere={handleCutoffFromExpense}
+            />
+          </div>
+        )}
+
+        {/* ===================== PESTAÑA: ANÁLISIS ===================== */}
+        {activeTab === 'analytics' && (
+          <AnalyticsView
+            expenses={expenses}
+            periods={periods}
+            activeFilter={activeFilter}
+            activePeriod={activePeriod}
+          />
+        )}
+
+        {/* ===================== PESTAÑA: AJUSTES ===================== */}
+        {activeTab === 'settings' && (
+          <SettingsView />
+        )}
       </main>
+
+      {/* Barra de Navegación Inferior */}
+      <BottomTabBar activeTab={activeTab} onChange={setActiveTab} />
 
       {/* Botón flotante accesible con una mano en 375px */}
       <FloatingActionButton onClick={handleOpenAdd} />

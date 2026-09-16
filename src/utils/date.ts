@@ -54,6 +54,19 @@ export function isExpenseMatchingFilter(
   return isWithinPeriod(expense.date, filter, period);
 }
 
+/**
+ * Verifica si un gasto pertenece directamente a un período específico.
+ * Usa periodId si está seteado, si no, rango de fechas del período.
+ */
+export function isExpenseInPeriod(expense: Expense, period: Period): boolean {
+  if (expense.periodId) {
+    return expense.periodId === period.id;
+  }
+  if (expense.date < period.startDate) return false;
+  if (period.endDate && expense.date > period.endDate) return false;
+  return true;
+}
+
 export interface ExpenseGroup {
   date: string;
   displayDate: string;
