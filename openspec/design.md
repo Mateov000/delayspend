@@ -594,6 +594,7 @@ create trigger on_auth_user_created_auto_confirm
 ```
 
 ### 8.3 Suscripciones WebSocket en Tiempo Real
+Al vincular una cuenta, `useSyncStore` crea un canal dinámico `user_expenses_${userId}` escuchando eventos `postgres_changes` sobre `public.expenses`. Cualquier inserción o modificación en un dispositivo secundario se refleja en milisegundos en la UI local.
 Al vincular una cuenta, `useSyncStore` crea un canal dinámico `user_expenses_${userId}` escuchando eventos `postgres_changes` sobre `public.expenses` y `public.periods`. Cualquier inserción o modificación en un dispositivo secundario se refleja en milisegundos en la UI local.
 
 ---
@@ -633,4 +634,35 @@ create policy "Users can manage their own periods"
   on public.periods for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+---
+
+## 10. 🎯 Corte por Gasto Específico y Ahorro Extra por Opción Más Barata (v1.4.0)
+
+### 10.1 Corte por Gasto Específico (`cutoffExpenseId`)
+Para permitir cortes de período de máxima precisión (incluso cuando existen múltiples movimientos en una misma fecha o quincena):
+1. **Punto de Corte en el Historial**: El usuario puede abrir un nuevo período eligiendo un gasto específico como punto de corte, ya sea desde el modal *"Nuevo período"* (dropdown de selección) o directamente desde el menú de opciones del movimiento en el historial (*"Iniciar nuevo período acá"*).
+2. **Reasignación de Gastos**:
+   - El gasto seleccionado y todos los movimientos posteriores pasan a pertenecer al nuevo ciclo (`newPeriod.id`).
+   - Todos los movimientos anteriores se asignan al ciclo cerrado anterior (`prevPeriodId`).
+3. **Persistencia y Sincronización**:
+   - Se añadió la columna `cutoff_expense_id` en `public.periods`.
+   - Se añadió la columna `period_id` en `public.expenses`.
+4. **Deshacer Corte**: Al ejecutar *"Deshacer corte"*, los gastos pertenecientes al período cancelado son reasignados de vuelta al período anterior, garantizando coherencia instantánea.
+
+### 10.2 Ahorro Extra DelaySpend por Opción Más Barata (`savedExtraAmount`)
+En línea con la psicología conductual de la app: si el usuario decide comprar una opción más barata en lugar de una cara (ej: comprar un café al paso de $1.500 en vez de un café de especialidad de $4.500):
+1. **Captura del Sobreprecio Evitado**: Al registrar un gasto real, se activa el toggle *"¿Elegiste una opción más barata?"* e ingresa el monto ahorrado (`savedExtraAmount`, ej: $3.000).
+2. **Generación Automática del Gasto Complementario**: El sistema crea automáticamente un registro `delayed` complementario vinculado (`linkedExpenseId = realExpense.id`):
+   - Tipo: `delayed`.
+   - Monto: `$3.000` (el sobreprecio evitado).
+   - Detalle: `"Ahorro opción más barata (Café al paso)"`.
+   - Categoría y Fecha: Idénticas a la del gasto real.
+3. **Impacto en Métricas y Rendición**:
+   - Los `$1.500` van al gasto real efectivo (`totalReal`).
+   - Los `$3.000` van al ahorro protegido (`totalDelayed`) y a la métrica estrella *"Monto a Transferir"* (`pendingTransfer`).
+4. **Ciclo de Vida Sincronizado**:
+   - Al editar el gasto real o su ahorro extra, el movimiento complementario se actualiza automáticamente.
+   - Si se desactiva el ahorro o se borra el gasto real, el movimiento complementario se elimina en cascada.
+
 ```

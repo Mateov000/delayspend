@@ -5,7 +5,7 @@ import { STRINGS } from '../../constants/strings';
 import { useToastStore } from '../../store/useToastStore';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { Button } from '../ui/Button';
-import { ArrowDownLeft, ShieldCheck } from 'lucide-react';
+import { ArrowDownLeft, ShieldCheck, PiggyBank } from 'lucide-react';
 
 interface ExpenseFormProps {
   initialValues?: ExpenseInput;
@@ -31,6 +31,12 @@ export function ExpenseForm({
   const [description, setDescription] = useState<string>(initialValues?.description ?? '');
   const [categoryId, setCategoryId] = useState<CategoryId>(initialValues?.categoryId ?? 'food');
   const [date, setDate] = useState<string>(initialValues?.date ?? todayStr);
+  const [hasCheaperOption, setHasCheaperOption] = useState<boolean>(
+    Boolean(initialValues?.savedExtraAmount && initialValues.savedExtraAmount > 0)
+  );
+  const [cheaperSavingsStr, setCheaperSavingsStr] = useState<string>(
+    initialValues?.savedExtraAmount ? String(initialValues.savedExtraAmount) : ''
+  );
 
   const handleAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     // Permite números y una sola coma o punto
@@ -52,12 +58,23 @@ export function ExpenseForm({
       return;
     }
 
+    let cleanSavedExtra: number | undefined = undefined;
+    if (type === 'real' && hasCheaperOption) {
+      const parsedSavings = parseFloat(cheaperSavingsStr.replace(/[^0-9.,]/g, '').replace(',', '.'));
+      if (!isNaN(parsedSavings) && parsedSavings > 0) {
+        cleanSavedExtra = parsedSavings;
+      }
+    }
+
     onSubmit({
       type,
       amount: cleanAmount,
       description: description.trim(),
       categoryId,
       date: date || todayStr,
+      savedExtraAmount: cleanSavedExtra,
+      periodId: initialValues?.periodId,
+      linkedExpenseId: initialValues?.linkedExpenseId,
     });
   };
 
@@ -185,7 +202,78 @@ export function ExpenseForm({
         />
       </div>
 
-      {/* 6. Botones de Acción */}
+      {/* 6. Opción más barata / Ahorro extra DelaySpend */}
+      {type === 'real' && (
+        <div className="flex flex-col gap-3 p-3.5 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl transition-all">
+          <div
+            className="flex items-center justify-between cursor-pointer"
+            onClick={() => setHasCheaperOption(!hasCheaperOption)}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                <PiggyBank className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-slate-800">
+                  {STRINGS.FORM_CHEAPER_OPTION_TOGGLE}
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium leading-snug">
+                  {STRINGS.FORM_CHEAPER_OPTION_SUBTITLE}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={hasCheaperOption}
+              onClick={(e) => {
+                e.stopPropagation();
+                setHasCheaperOption(!hasCheaperOption);
+              }}
+              className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                hasCheaperOption ? 'bg-emerald-600' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                  hasCheaperOption ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {hasCheaperOption && (
+            <div className="flex flex-col gap-1.5 pt-2.5 border-t border-emerald-200/70">
+              <label htmlFor="cheaper-savings" className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
+                {STRINGS.FORM_CHEAPER_SAVINGS_LABEL}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold text-sm">
+                  $
+                </span>
+                <input
+                  id="cheaper-savings"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="2.500"
+                  value={cheaperSavingsStr}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.,]/g, '');
+                    setCheaperSavingsStr(val);
+                  }}
+                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-emerald-300 bg-white text-emerald-950 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                />
+              </div>
+              <span className="text-[10px] text-emerald-700 font-medium leading-tight">
+                {STRINGS.FORM_CHEAPER_SAVINGS_HINT}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 7. Botones de Acción */}
       <div className="flex flex-col gap-2 pt-2">
         <Button
           type="submit"

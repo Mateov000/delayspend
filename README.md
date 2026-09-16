@@ -3,9 +3,11 @@
 > Cada gasto que evitás vale tanto como cada peso que gastás. DelaySpend lo registra, lo mide, y te dice exactamente cuánto mover a tu cuenta de ahorro.
 
 **Tipo de proyecto:** PWA de finanzas personales basada en psicología conductual  
+**Arquitectura:** 100% cliente — sin backend, sin base de datos, sin autenticación  
 **Arquitectura:** Local-First / Híbrida — PWA Offline-First con Backend en la Nube (Supabase PostgreSQL, Auth con triggers, Realtime WebSockets) y Hosting en Vercel  
 **Metodología de desarrollo:** Spec-driven, inspirada en OpenSpec/ChangeSpec  
-**Versión de este documento:** 1.3.0 · **Última actualización:** 2026-09-15  
+**Versión de este documento:** 1.0.0 · **Última actualización:** 2026-09-11
+**Versión de este documento:** 1.4.0 · **Última actualización:** 2026-09-15  
 
 ---
 
@@ -26,13 +28,16 @@ La app trackea dos tipos de eventos:
 - **Gasto real**: plata que efectivamente salió de tu bolsillo.
 - **Gasto delayeado**: una compra que ibas a hacer y decidiste postergar (o directamente no hacer). Ese monto **no se gastó**, pero tampoco debería "perderse" en la cuenta corriente: DelaySpend calcula exactamente cuánto de esa plata tenés que mover a una cuenta remunerada o de ahorro.
 
-### Ciclos de Período, Reinicio de Contadores y Fondo Asignado
+Como caso de uso principal (aunque no excluyente), está pensada para alguien a quien sus padres le financian los gastos del mes: la app funciona como herramienta de **rendición de cuentas transparente**, generando un resumen prolijo y exportable para mandar por WhatsApp o mail, sin necesidad de mostrar el resto de la cuenta bancaria. Además, cuenta con un **modo de rendición unificada** para presentar todos los montos como gastos comunes y justificar directamente la transferencia de dinero.
+
+### Ciclos de Período, Reinicio de Contadores, Corte por Gasto y Ahorro por Opción Más Barata (v1.4.0)
 Para ajustarse a la dinámica real de transferencias quincenales o mensuales:
 - **Reinicio de Contadores**: Permite cerrar el ciclo actual y empezar uno nuevo con contadores en $0, manteniendo todo el historial previo navegable y editable.
+- **Corte por Gasto Específico**: Permite fijar el inicio de un nuevo período a partir de un gasto específico (desde el formulario de nuevo período o desde el menú *"Iniciar nuevo período acá"* de cualquier movimiento). Ese gasto y todos los posteriores pasan al nuevo ciclo, con soporte total para deshacer el corte.
+- **Ahorro Extra DelaySpend por Opción Más Barata**: Al registrar un gasto real, se puede anotar el sobreprecio evitado por elegir una alternativa más económica. El sistema genera automáticamente un registro delayeado complementario y alimenta la métrica estrella *"Monto a Transferir"*.
 - **Ingreso Inicial / Presupuesto**: Permite registrar el dinero recibido para el período (ej. $50.000). La app calcula en tiempo real el saldo remanente (`Ingreso - Gastado Real`) y el saldo libre para ahorro.
 - **Corte Deshacible (Undo)**: Cualquier corte de período puede revertirse para unificar los movimientos con el ciclo anterior sin perder datos.
 - **Rendición Transparente o Unificada**: Exportación para WhatsApp o CSV en modo detallado o unificado (ideal para rendir gastos a los padres sin fricciones).
-
 ### Modelo de Almacenamiento: Local-First Híbrido
 La app **no depende de la conectividad para funcionar**, pero **tampoco se limita a un único dispositivo**:
 1. **Capa Local (Caché / 0ms)**: Las operaciones de guardado, edición y lectura ocurren primero contra el store local (`localStorage` + Zustand), garantizando respuesta instantánea en 0 milisegundos y operatividad total offline.

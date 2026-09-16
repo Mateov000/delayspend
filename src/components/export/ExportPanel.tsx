@@ -50,6 +50,8 @@ export function ExportPanel({
   };
 
   const handleDownloadCSV = () => {
+    downloadExpensesCSV(expenses, filter);
+    downloadExpensesCSV(expenses, filter, { unified: isUnified });
     downloadExpensesCSV(expenses, filter, {
       unified: isUnified,
       period,

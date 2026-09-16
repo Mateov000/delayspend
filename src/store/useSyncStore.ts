@@ -28,6 +28,9 @@ interface DbExpenseRow {
   category_id: string;
   date: string;
   transferred_at: string | null;
+  period_id?: string | null;
+  saved_extra_amount?: number;
+  linked_expense_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -40,6 +43,7 @@ interface DbPeriodRow {
   start_date: string;
   end_date: string | null;
   initial_income: number;
+  cutoff_expense_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -54,6 +58,9 @@ function mapRowToExpense(row: DbExpenseRow): Expense {
     categoryId: row.category_id as Expense['categoryId'],
     date: row.date,
     transferredAt: row.transferred_at,
+    periodId: row.period_id || null,
+    savedExtraAmount: row.saved_extra_amount ? Number(row.saved_extra_amount) : undefined,
+    linkedExpenseId: row.linked_expense_id || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -66,6 +73,7 @@ function mapRowToPeriod(row: DbPeriodRow): Period {
     startDate: row.start_date,
     endDate: row.end_date,
     initialIncome: Number(row.initial_income) || 0,
+    cutoffExpenseId: row.cutoff_expense_id || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -103,13 +111,6 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       }
     });
 
-    if (!navigator.onLine) {
-      set({ status: 'offline' });
-    } else {
-      set({ status: 'syncing' });
-      get().syncAllWithCloud(userId);
-    }
-
     const handleOnline = () => {
       set({ status: 'syncing' });
       get().syncAllWithCloud(userId);
@@ -122,7 +123,10 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Canales WebSocket en tiempo real para expenses y periods
+    // Cargar datos remotos y fusionar (merge bidireccional)
+    get().syncAllWithCloud(userId);
+
+    // Canales WebSocket Realtime
     let expenseChannel: RealtimeChannel | null = null;
     let periodChannel: RealtimeChannel | null = null;
 
@@ -217,12 +221,14 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         )
         .subscribe();
     } catch {
-      // Degradar silenciosamente si no hay websockets
+      set({ status: 'offline' });
     }
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      registerSyncListener(() => {});
+      registerPeriodSyncListener(() => {});
       if (expenseChannel) supabase.removeChannel(expenseChannel);
       if (periodChannel) supabase.removeChannel(periodChannel);
     };
@@ -276,9 +282,13 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           category_id: e.categoryId,
           date: e.date,
           transferred_at: e.transferredAt,
+          period_id: e.periodId || null,
+          saved_extra_amount: e.savedExtraAmount || 0,
+          linked_expense_id: e.linkedExpenseId || null,
           created_at: e.createdAt,
           updated_at: e.updatedAt,
         }));
+
         await supabase.from('expenses').upsert(payload);
       }
 
@@ -324,6 +334,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           start_date: p.startDate,
           end_date: p.endDate,
           initial_income: p.initialIncome,
+          cutoff_expense_id: p.cutoffExpenseId || null,
           created_at: p.createdAt,
           updated_at: p.updatedAt,
         }));
@@ -353,6 +364,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         category_id: expense.categoryId,
         date: expense.date,
         transferred_at: expense.transferredAt,
+        period_id: expense.periodId || null,
+        saved_extra_amount: expense.savedExtraAmount || 0,
+        linked_expense_id: expense.linkedExpenseId || null,
         created_at: expense.createdAt,
         updated_at: expense.updatedAt,
       });
@@ -386,6 +400,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         start_date: period.startDate,
         end_date: period.endDate,
         initial_income: period.initialIncome,
+        cutoff_expense_id: period.cutoffExpenseId || null,
         created_at: period.createdAt,
         updated_at: period.updatedAt,
       });

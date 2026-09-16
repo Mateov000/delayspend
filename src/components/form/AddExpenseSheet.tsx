@@ -10,6 +10,7 @@ interface AddExpenseSheetProps {
   onClose: () => void;
   editingExpense?: Expense | null;
   defaultDate?: string;
+  defaultPeriodId?: string | null;
 }
 
 export function AddExpenseSheet({
@@ -17,6 +18,7 @@ export function AddExpenseSheet({
   onClose,
   editingExpense,
   defaultDate,
+  defaultPeriodId,
 }: AddExpenseSheetProps) {
   const { addExpense, updateExpense } = useExpenseStore();
   const { showToast } = useToastStore();
@@ -26,8 +28,14 @@ export function AddExpenseSheet({
       updateExpense(editingExpense.id, data);
       showToast(STRINGS.TOAST_EXPENSE_UPDATED, 'info');
     } else {
-      addExpense(data);
-      if (data.type === 'delayed') {
+      const expenseData: ExpenseInput = {
+        ...data,
+        periodId: data.periodId ?? defaultPeriodId ?? null,
+      };
+      addExpense(expenseData);
+      if (data.savedExtraAmount && data.savedExtraAmount > 0) {
+        showToast(STRINGS.TOAST_EXPENSE_ADDED_WITH_SAVINGS, 'success');
+      } else if (data.type === 'delayed') {
         showToast(STRINGS.TOAST_EXPENSE_ADDED_DELAYED, 'success');
       } else {
         showToast(STRINGS.TOAST_EXPENSE_ADDED_REAL, 'success');
@@ -43,14 +51,18 @@ export function AddExpenseSheet({
         description: editingExpense.description,
         categoryId: editingExpense.categoryId,
         date: editingExpense.date,
+        periodId: editingExpense.periodId,
+        savedExtraAmount: editingExpense.savedExtraAmount,
+        linkedExpenseId: editingExpense.linkedExpenseId,
       }
-    : defaultDate
+    : defaultDate || defaultPeriodId
     ? {
         type: 'delayed',
         amount: 0,
         description: '',
         categoryId: 'food',
-        date: defaultDate,
+        date: defaultDate || new Date().toISOString().split('T')[0]!,
+        periodId: defaultPeriodId ?? null,
       }
     : undefined;
 

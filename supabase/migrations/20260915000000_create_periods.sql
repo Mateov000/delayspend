@@ -37,3 +37,4 @@ create policy "Users can delete their own periods"
 
 -- Habilitar Supabase Realtime para la tabla periods
 alter publication supabase_realtime add table public.periods;
+

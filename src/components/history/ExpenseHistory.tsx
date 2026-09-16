@@ -12,6 +12,7 @@ interface ExpenseHistoryProps {
   onEdit: (expense: Expense) => void;
   onDelete: (id: string) => void;
   onToggleTransfer: (id: string) => void;
+  onCutoffFromHere?: (expense: Expense) => void;
 }
 
 export function ExpenseHistory({
@@ -20,6 +21,7 @@ export function ExpenseHistory({
   onEdit,
   onDelete,
   onToggleTransfer,
+  onCutoffFromHere,
 }: ExpenseHistoryProps) {
   const groups = groupExpensesByDate(expenses);
   const showIncomeMilestone = Boolean(period && period.initialIncome > 0);
@@ -68,6 +70,7 @@ export function ExpenseHistory({
               onEdit={onEdit}
               onDelete={onDelete}
               onToggleTransfer={onToggleTransfer}
+              onCutoffFromHere={onCutoffFromHere}
             />
           ))}
         </div>

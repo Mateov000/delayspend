@@ -21,6 +21,7 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
         onTransferClick={onTransferClick}
       />
 
+      {/* 2. Grid de Total Gastado vs Total Guardado */}
       {/* 2. Tarjeta de Ingreso Asignado y Saldo Remanente del Período */}
       {hasIncome && (
         <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-4 rounded-2xl shadow-sm border border-slate-800 flex flex-col gap-3">
@@ -106,6 +107,7 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
         />
       </div>
 
+      {/* 3. Indicador sutil de total rendido (ideal para padres) */}
       {/* 4. Indicador sutil de total rendido (ideal para padres) */}
       <div className="flex items-center justify-between px-3.5 py-2 bg-slate-100/80 rounded-xl border border-slate-200/50 text-xs">
         <span className="font-semibold text-slate-500">

@@ -65,6 +65,7 @@ export default function App() {
   const [isConfirmUndoCutoffOpen, setIsConfirmUndoCutoffOpen] = useState(false);
   const [deletingPeriodId, setDeletingPeriodId] = useState<string | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [cutoffCandidateExpense, setCutoffCandidateExpense] = useState<Expense | null>(null);
 
   // Estados para diálogos de confirmación accesibles (sin window.confirm)
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -131,6 +132,17 @@ export default function App() {
   const handlePeriodCreated = (newPeriod: Period) => {
     setActivePeriodId(newPeriod.id);
     setFilterType('custom_period');
+    setCutoffCandidateExpense(null);
+  };
+
+  const handleCutoffFromExpense = (expense: Expense) => {
+    setCutoffCandidateExpense(expense);
+    setIsNewPeriodOpen(true);
+  };
+
+  const handleCloseNewPeriod = () => {
+    setIsNewPeriodOpen(false);
+    setCutoffCandidateExpense(null);
   };
 
   const handleConfirmUndoCutoff = () => {
@@ -162,7 +174,10 @@ export default function App() {
       <main className="flex-1 px-4 py-4 flex flex-col">
         {/* Selector de Períodos: Ciclos abiertos / cerrados / históricos */}
         <PeriodFilter
-          onOpenNewPeriod={() => setIsNewPeriodOpen(true)}
+          onOpenNewPeriod={() => {
+            setCutoffCandidateExpense(null);
+            setIsNewPeriodOpen(true);
+          }}
           onOpenEditPeriod={() => setIsEditPeriodOpen(true)}
           onUndoCutoff={() => setIsConfirmUndoCutoffOpen(true)}
         />
@@ -180,6 +195,7 @@ export default function App() {
           onEdit={handleEdit}
           onDelete={handleDeleteRequest}
           onToggleTransfer={handleToggleTransfer}
+          onCutoffFromHere={handleCutoffFromExpense}
         />
       </main>
 
@@ -192,6 +208,7 @@ export default function App() {
         onClose={handleCloseSheet}
         editingExpense={editingExpense}
         defaultDate={defaultExpenseDate}
+        defaultPeriodId={activePeriod?.id ?? null}
       />
 
       {/* Panel de Rendición y Exportación para WhatsApp y CSV */}
@@ -213,8 +230,9 @@ export default function App() {
       {/* Modal de Nuevo Período / Reinicio de Contadores */}
       <NewPeriodModal
         isOpen={isNewPeriodOpen}
-        onClose={() => setIsNewPeriodOpen(false)}
+        onClose={handleCloseNewPeriod}
         onCreated={handlePeriodCreated}
+        initialCutoffExpense={cutoffCandidateExpense}
       />
 
       {/* Modal de Edición de Período Activo */}

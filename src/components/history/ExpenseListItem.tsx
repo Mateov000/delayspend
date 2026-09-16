@@ -5,13 +5,14 @@ import { STRINGS } from '../../constants/strings';
 import { formatCurrency } from '../../utils/format';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { Badge } from '../ui/Badge';
-import { MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors } from 'lucide-react';
 
 interface ExpenseListItemProps {
   expense: Expense;
   onEdit: (expense: Expense) => void;
   onDelete: (id: string) => void;
   onToggleTransfer: (id: string) => void;
+  onCutoffFromHere?: (expense: Expense) => void;
 }
 
 export function ExpenseListItem({
@@ -19,11 +20,14 @@ export function ExpenseListItem({
   onEdit,
   onDelete,
   onToggleTransfer,
+  onCutoffFromHere,
 }: ExpenseListItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const category = getCategoryById(expense.categoryId);
   const isReal = expense.type === 'real';
   const isTransferred = Boolean(expense.transferredAt);
+  const hasCheaperSavings = Boolean(isReal && expense.savedExtraAmount && expense.savedExtraAmount > 0);
+  const isLinkedSavings = Boolean(!isReal && expense.linkedExpenseId);
 
   return (
     <div className="relative flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition-colors">
@@ -50,6 +54,19 @@ export function ExpenseListItem({
             <Badge variant={isReal ? 'real' : 'delayed'} size="sm">
               {isReal ? STRINGS.HISTORY_BADGE_REAL : STRINGS.HISTORY_BADGE_DELAYED}
             </Badge>
+
+            {hasCheaperSavings && (
+              <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                <span>💡 {STRINGS.HISTORY_BADGE_SAVINGS_EXTRA}</span>
+                <span>{formatCurrency(expense.savedExtraAmount!)}</span>
+              </span>
+            )}
+
+            {isLinkedSavings && (
+              <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200/80 font-bold px-1.5 py-0.5 rounded-md">
+                ⭐ {STRINGS.HISTORY_BADGE_LINKED_SAVINGS}
+              </span>
+            )}
 
             {!isReal && (
               <button
@@ -110,7 +127,7 @@ export function ExpenseListItem({
                 onClick={() => setShowMenu(false)}
               />
 
-              <div className="absolute right-0 top-8 z-30 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute right-0 top-8 z-30 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">
                 <button
                   type="button"
                   onClick={() => {
@@ -122,6 +139,20 @@ export function ExpenseListItem({
                   <Edit2 className="w-3.5 h-3.5 text-slate-400" />
                   <span>{STRINGS.HISTORY_ACTION_EDIT}</span>
                 </button>
+
+                {onCutoffFromHere && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onCutoffFromHere(expense);
+                    }}
+                    className="w-full flex items-center gap-2 px-3.5 py-2 text-indigo-700 hover:bg-indigo-50 font-medium transition-colors cursor-pointer"
+                  >
+                    <Scissors className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>{STRINGS.HISTORY_ACTION_CUTOFF_FROM_HERE}</span>
+                  </button>
+                )}
 
                 {!isReal && (
                   <button

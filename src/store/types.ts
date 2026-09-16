@@ -22,7 +22,7 @@ export interface Category {
 }
 
 export interface Expense {
-  id: string; // UUID v4 o nanoid (alfanumérico único)
+  id: string; // UUID v4 (coincidente con PostgreSQL UUID)
   type: ExpenseType; // 'real': plata gastada | 'delayed': compra postergada
   amount: number; // Monto mayor a 0, redondeado a 2 decimales
   description: string; // Concepto o justificación de la compra
@@ -32,6 +32,8 @@ export interface Expense {
   createdAt: string; // ISO 8601 de creación en el dispositivo
   updatedAt: string; // ISO 8601 de última edición
   periodId?: string | null; // ID opcional del período al que pertenece
+  savedExtraAmount?: number; // Monto extra ahorrado por optar por una alternativa más barata
+  linkedExpenseId?: string | null; // ID del gasto real asociado si este registro es un ahorro derivado
 }
 
 export interface Period {
@@ -40,6 +42,7 @@ export interface Period {
   startDate: string; // YYYY-MM-DD
   endDate: string | null; // YYYY-MM-DD (null si es el período actualmente activo/abierto)
   initialIncome: number; // Monto de dinero ingresado / presupuesto asignado al período
+  cutoffExpenseId?: string | null; // ID opcional del gasto a partir del cual se inició el ciclo
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
   deletedAt?: string | null; // Soft-delete para sincronización
@@ -73,4 +76,7 @@ export interface ExpenseInput {
   categoryId: CategoryId;
   date: string;
   periodId?: string | null;
+  savedExtraAmount?: number;
+  linkedExpenseId?: string | null;
 }
+

@@ -2,11 +2,13 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Period } from './types';
 import { generateId } from '../utils/id';
+import { useExpenseStore } from './useExpenseStore';
 
 export interface CreatePeriodInput {
   name?: string;
   startDate?: string;
   initialIncome?: number;
+  cutoffExpenseId?: string;
 }
 
 export interface PeriodState {
@@ -44,6 +46,7 @@ function sanitizePeriod(raw: unknown): Period | null {
 
   const initialIncome = Number(item.initialIncome) || 0;
   const endDate = typeof item.endDate === 'string' && item.endDate ? item.endDate : null;
+  const cutoffExpenseId = typeof item.cutoffExpenseId === 'string' && item.cutoffExpenseId ? item.cutoffExpenseId : null;
   const createdAt = typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString();
   const updatedAt = typeof item.updatedAt === 'string' ? item.updatedAt : createdAt;
   const deletedAt = typeof item.deletedAt === 'string' ? item.deletedAt : null;
@@ -54,6 +57,7 @@ function sanitizePeriod(raw: unknown): Period | null {
     startDate: item.startDate,
     endDate,
     initialIncome: Math.round(initialIncome * 100) / 100,
+    cutoffExpenseId,
     createdAt,
     updatedAt,
     deletedAt,
@@ -82,18 +86,29 @@ export const usePeriodStore = create<PeriodState>()(
       createCutoff: (input: CreatePeriodInput) => {
         const now = new Date().toISOString();
         const today = now.split('T')[0]!;
-        const startDate = input.startDate || today;
+        let startDate = input.startDate || today;
         const initialIncome = Math.max(0, Math.round((Number(input.initialIncome) || 0) * 100) / 100);
+
+        // Si se eligió un gasto específico de corte, sincronizamos la fecha de inicio
+        const allExpenses = useExpenseStore.getState().expenses;
+        let cutoffExpense = null;
+        if (input.cutoffExpenseId) {
+          cutoffExpense = allExpenses.find((e) => e.id === input.cutoffExpenseId) || null;
+          if (cutoffExpense) {
+            startDate = cutoffExpense.date;
+          }
+        }
 
         const currentPeriods = [...get().periods];
         const updatedList: Period[] = [];
+        let prevPeriodId: string | null = null;
 
         // 1. Si existe un período abierto actual (endDate === null), lo cerramos
         const openIndex = currentPeriods.findIndex((p) => p.endDate === null);
         if (openIndex >= 0) {
           const openPeriod = currentPeriods[openIndex]!;
-          // La fecha de fin del anterior es un día antes del inicio del nuevo
-          const closedEndDate = getDayBefore(startDate);
+          prevPeriodId = openPeriod.id;
+          const closedEndDate = cutoffExpense ? cutoffExpense.date : getDayBefore(startDate);
           const closedPeriod: Period = {
             ...openPeriod,
             endDate: closedEndDate >= openPeriod.startDate ? closedEndDate : openPeriod.startDate,
@@ -104,11 +119,13 @@ export const usePeriodStore = create<PeriodState>()(
           periodSyncListener?.('push', closedPeriod);
         } else if (currentPeriods.length === 0) {
           // Si no había ningún período creado previamente, creamos un "Período Inicial" para el historial previo
+          const initialPeriodId = generateId();
+          prevPeriodId = initialPeriodId;
           const initialPeriod: Period = {
-            id: generateId(),
+            id: initialPeriodId,
             name: 'Período Inicial',
             startDate: '2026-01-01',
-            endDate: getDayBefore(startDate),
+            endDate: cutoffExpense ? cutoffExpense.date : getDayBefore(startDate),
             initialIncome: 0,
             createdAt: now,
             updatedAt: now,
@@ -128,9 +145,37 @@ export const usePeriodStore = create<PeriodState>()(
           startDate,
           endDate: null,
           initialIncome,
+          cutoffExpenseId: input.cutoffExpenseId || null,
           createdAt: now,
           updatedAt: now,
         };
+
+        // 3. Reasignar gastos por periodId
+        if (input.cutoffExpenseId) {
+          // Ordenar cronológicamente
+          const sorted = [...allExpenses].sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return a.createdAt.localeCompare(b.createdAt);
+          });
+          const cutoffIdx = sorted.findIndex((e) => e.id === input.cutoffExpenseId);
+          if (cutoffIdx >= 0) {
+            const newPeriodExpenseIds = sorted.slice(cutoffIdx).map((e) => e.id);
+            const prevExpenseIds = sorted.slice(0, cutoffIdx).map((e) => e.id);
+
+            useExpenseStore.getState().assignExpensesToPeriod(newPeriodExpenseIds, newPeriod.id);
+            if (prevPeriodId) {
+              useExpenseStore.getState().assignExpensesToPeriod(prevExpenseIds, prevPeriodId);
+            }
+          }
+        } else {
+          // Si es por fecha, asignar a newPeriod todos los gastos a partir de startDate que no tengan período
+          const fromDateExpenseIds = allExpenses
+            .filter((e) => e.date >= startDate && (!e.periodId || e.periodId === prevPeriodId))
+            .map((e) => e.id);
+          if (fromDateExpenseIds.length > 0) {
+            useExpenseStore.getState().assignExpensesToPeriod(fromDateExpenseIds, newPeriod.id);
+          }
+        }
 
         const finalPeriods = [newPeriod, ...currentPeriods];
 
@@ -147,12 +192,10 @@ export const usePeriodStore = create<PeriodState>()(
         const now = new Date().toISOString();
         const currentPeriods = [...get().periods];
 
-        // Necesitamos al menos 2 períodos para poder deshacer el corte
         if (currentPeriods.length < 2) {
           return { success: false, message: 'No hay un corte anterior para deshacer.' };
         }
 
-        // El período más nuevo (el abierto) es el primero si ordenamos por createdAt desc
         const sorted = [...currentPeriods].sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
@@ -164,10 +207,20 @@ export const usePeriodStore = create<PeriodState>()(
           return { success: false, message: 'No se encontraron períodos suficientes.' };
         }
 
-        // 1. Eliminar el período más nuevo
+        // 1. Reasignar todos los gastos del período nuevo de vuelta al anterior
+        const allExpenses = useExpenseStore.getState().expenses;
+        const expensesToRevert = allExpenses
+          .filter((e) => e.periodId === newestPeriod.id)
+          .map((e) => e.id);
+
+        if (expensesToRevert.length > 0) {
+          useExpenseStore.getState().assignExpensesToPeriod(expensesToRevert, previousPeriod.id);
+        }
+
+        // 2. Eliminar el período más nuevo
         const remainingPeriods = currentPeriods.filter((p) => p.id !== newestPeriod.id);
 
-        // 2. Reabrir el período inmediatamente anterior (endDate: null)
+        // 3. Reabrir el período inmediatamente anterior (endDate: null)
         const updatedPrevious: Period = {
           ...previousPeriod,
           endDate: null,
@@ -183,7 +236,6 @@ export const usePeriodStore = create<PeriodState>()(
           activePeriodId: updatedPrevious.id,
         });
 
-        // Sincronizar en la nube: delete del newest y push del reabierto
         periodSyncListener?.('delete', newestPeriod.id);
         periodSyncListener?.('push', updatedPrevious);
 
@@ -276,3 +328,4 @@ export const usePeriodStore = create<PeriodState>()(
     }
   )
 );
+

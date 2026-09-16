@@ -43,7 +43,9 @@ export function isExpenseMatchingFilter(
   if (filter.type === 'all') return true;
 
   if (filter.type === 'custom_period' && period) {
-    if (expense.periodId && expense.periodId === period.id) return true;
+    if (expense.periodId) {
+      return expense.periodId === period.id;
+    }
     if (expense.date < period.startDate) return false;
     if (period.endDate && expense.date > period.endDate) return false;
     return true;

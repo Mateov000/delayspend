@@ -8,6 +8,7 @@ interface ExpenseHistoryGroupProps {
   onEdit: (expense: Expense) => void;
   onDelete: (id: string) => void;
   onToggleTransfer: (id: string) => void;
+  onCutoffFromHere?: (expense: Expense) => void;
 }
 
 export function ExpenseHistoryGroup({
@@ -15,6 +16,7 @@ export function ExpenseHistoryGroup({
   onEdit,
   onDelete,
   onToggleTransfer,
+  onCutoffFromHere,
 }: ExpenseHistoryGroupProps) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -47,6 +49,7 @@ export function ExpenseHistoryGroup({
             onEdit={onEdit}
             onDelete={onDelete}
             onToggleTransfer={onToggleTransfer}
+            onCutoffFromHere={onCutoffFromHere}
           />
         ))}
       </div>

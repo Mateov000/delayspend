@@ -156,6 +156,24 @@ export const STRINGS = {
   TOAST_PERIOD_UNDO_SUCCESS: 'Corte de período deshecho. Gastos unificados con el ciclo anterior.',
   EXPORT_WHATSAPP_INCOME: '• Ingreso asignado al período:',
   EXPORT_WHATSAPP_REMAINING: '• Saldo disponible remanente:',
+
+  // Ahorro Extra por Opción Más Barata (Sobreprecio evitado)
+  FORM_CHEAPER_OPTION_TOGGLE: '¿Elegiste una opción más barata?',
+  FORM_CHEAPER_OPTION_SUBTITLE: 'Registrá el sobreprecio que evitaste para apartarlo a tu ahorro.',
+  FORM_CHEAPER_SAVINGS_LABEL: 'Monto que te ahorraste ($)',
+  FORM_CHEAPER_SAVINGS_PLACEHOLDER: '0',
+  FORM_CHEAPER_SAVINGS_HINT: 'Este dinero no salió de tu bolsillo: se anotará como ahorro DelaySpend para que lo muevas a tu cuenta.',
+  HISTORY_BADGE_CHEAPER_SAVINGS: 'Ahorro opción barata',
+  HISTORY_BADGE_SAVINGS_EXTRA: 'Ahorraste',
+  HISTORY_BADGE_LINKED_SAVINGS: 'Ahorro vs opción cara',
+  HISTORY_ACTION_CUTOFF_FROM_HERE: 'Iniciar nuevo período acá',
+
+  // Corte por gasto específico
+  PERIOD_CUTOFF_EXPENSE_LABEL: 'Cortar a partir de un gasto específico',
+  PERIOD_CUTOFF_EXPENSE_NONE: 'Ninguno (corte solo por fecha)',
+  PERIOD_CUTOFF_EXPENSE_HINT: 'El gasto seleccionado y todos los posteriores quedarán en el nuevo ciclo.',
+  PERIOD_CUTOFF_EXPENSE_SELECTED_NOTICE: 'Corte fijado a partir del gasto seleccionado',
+  TOAST_EXPENSE_ADDED_WITH_SAVINGS: '¡Gasto registrado y ahorro extra DelaySpend generado!',
 } as const;
 
 export type StringKey = keyof typeof STRINGS;
