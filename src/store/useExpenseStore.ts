@@ -31,7 +31,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
   const item = raw as Record<string, unknown>;
 
   if (typeof item.id !== 'string' || !item.id) return null;
-  if (item.type !== 'real' && item.type !== 'delayed') return null;
+  if (item.type !== 'real' && item.type !== 'delayed' && item.type !== 'income') return null;
 
   // Descartar registros legacy complementarios (linkedExpenseId seteado)
   if (item.linkedExpenseId) return null;
@@ -52,10 +52,10 @@ function sanitizeExpense(raw: unknown): Expense | null {
       ? Math.round(rawSaved * 100) / 100
       : undefined;
 
-  // transferredAt: gastos 'real' solo aplica si tienen savedExtraAmount
+  // transferredAt: solo aplica a gastos 'delayed' o 'real' con savedExtraAmount (no ingresos)
   const rawTransferredAt = typeof item.transferredAt === 'string' ? item.transferredAt : null;
   const transferredAt =
-    item.type === 'real' && !savedExtraAmount ? null : rawTransferredAt;
+    item.type === 'income' || (item.type === 'real' && !savedExtraAmount) ? null : rawTransferredAt;
 
   // Tags: array de strings
   const rawTags = item.tags;
@@ -106,7 +106,7 @@ export const useExpenseStore = create<ExpenseState>()(
 
         const tags = input.tags && input.tags.length > 0 ? input.tags : undefined;
 
-        // Si hay cuotas, generamos un groupId compartido
+        // Si hay cuotas (solo en gastos reales), generamos un groupId compartido
         const hasInstallments =
           input.type === 'real' &&
           input.installmentTotal !== null &&
@@ -119,15 +119,15 @@ export const useExpenseStore = create<ExpenseState>()(
           type: input.type,
           amount: Math.round(Number(input.amount) * 100) / 100,
           description: input.description.trim(),
-          categoryId: input.categoryId,
+          categoryId: input.categoryId || 'other',
           date: input.date,
           transferredAt: null,
           createdAt: now,
           updatedAt: now,
           periodId: input.periodId ?? null,
-          savedExtraAmount: savedExtra,
+          savedExtraAmount: input.type === 'real' ? savedExtra : undefined,
           tags,
-          installmentGroupId,
+          installmentGroupId: input.type === 'real' ? installmentGroupId : null,
           installmentNumber: hasInstallments ? (input.installmentNumber ?? 1) : null,
           installmentTotal: hasInstallments ? input.installmentTotal : null,
         };
@@ -179,34 +179,35 @@ export const useExpenseStore = create<ExpenseState>()(
 
             // Manejo estricto de remoción o actualización del sobreprecio ahorrado
             let updatedSavedExtra: number | undefined = expense.savedExtraAmount;
-            if ('savedExtraAmount' in input) {
-              if (
-                updatedType === 'real' &&
-                input.savedExtraAmount !== null &&
-                input.savedExtraAmount !== undefined &&
-                input.savedExtraAmount > 0
-              ) {
-                updatedSavedExtra = Math.round(Number(input.savedExtraAmount) * 100) / 100;
-              } else {
-                updatedSavedExtra = undefined;
+            if (updatedType === 'real') {
+              if ('savedExtraAmount' in input) {
+                if (
+                  input.savedExtraAmount !== null &&
+                  input.savedExtraAmount !== undefined &&
+                  input.savedExtraAmount > 0
+                ) {
+                  updatedSavedExtra = Math.round(Number(input.savedExtraAmount) * 100) / 100;
+                } else {
+                  updatedSavedExtra = undefined;
+                }
               }
-            } else if (updatedType !== 'real') {
+            } else {
               updatedSavedExtra = undefined;
             }
 
-            // Cuotas
+            // Cuotas (solo en real)
             const updatedInstallmentGroupId =
-              input.installmentGroupId !== undefined
-                ? input.installmentGroupId
-                : expense.installmentGroupId;
+              updatedType === 'real'
+                ? (input.installmentGroupId !== undefined ? input.installmentGroupId : expense.installmentGroupId)
+                : null;
             const updatedInstallmentNumber =
-              input.installmentNumber !== undefined
-                ? input.installmentNumber
-                : expense.installmentNumber;
+              updatedType === 'real'
+                ? (input.installmentNumber !== undefined ? input.installmentNumber : expense.installmentNumber)
+                : null;
             const updatedInstallmentTotal =
-              input.installmentTotal !== undefined
-                ? input.installmentTotal
-                : expense.installmentTotal;
+              updatedType === 'real'
+                ? (input.installmentTotal !== undefined ? input.installmentTotal : expense.installmentTotal)
+                : null;
 
             updatedItem = {
               ...expense,
@@ -218,7 +219,9 @@ export const useExpenseStore = create<ExpenseState>()(
               periodId: updatedPeriodId,
               savedExtraAmount: updatedSavedExtra,
               transferredAt:
-                updatedType === 'real' && !updatedSavedExtra ? null : expense.transferredAt,
+                updatedType === 'income' || (updatedType === 'real' && !updatedSavedExtra)
+                  ? null
+                  : expense.transferredAt,
               tags: updatedTags,
               installmentGroupId: updatedInstallmentGroupId,
               installmentNumber: updatedInstallmentNumber,

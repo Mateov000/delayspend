@@ -2,29 +2,27 @@ import { Expense, Period } from '../store/types';
 import { isExpenseInPeriod } from './date';
 
 export interface HistoricalSavings {
-  /** Suma de todos los montos protegidos (delayed + savedExtraAmount) transferidos o pendientes */
+  /** Ahorro generado por postergación DelaySpend (delayed + savedExtraAmount en todas las compras) */
   delaySpendSavings: number;
-  /** Suma de sobrantes de ingreso en períodos cerrados (initialIncome - totalAccounted, solo positivos) */
+  /** Dinero no gastado del ingreso inicial en períodos anteriores que ya fueron cerrados (endDate !== null) */
   incomeLeftoverSavings: number;
-  /** Total: delaySpendSavings + incomeLeftoverSavings */
+  /** Suma total de ambos componentes de ahorro */
   totalSavings: number;
-  /** Cantidad de períodos que aportan datos al cálculo */
-  periodsCount: number;
+  /** Cantidad de períodos cerrados con sobrante de dinero */
+  closedPeriodsCount: number;
 }
 
 /**
- * Calcula el ahorro histórico acumulado a través de todos los períodos.
- * - delaySpendSavings: todo lo protegido por DelaySpend (transferido + pendiente)
- * - incomeLeftoverSavings: lo que sobró al cerrar cada período (no gastado ni delayeado)
+ * Calcula el ahorro histórico acumulado total del usuario:
+ * 1. delaySpendSavings: suma de TODO lo delayeado + sobreprecios evitados, sin filtrar por período.
+ * 2. incomeLeftoverSavings: suma de (initialIncome + extraIncomes - totalReal) de todos los períodos ya cerrados.
  */
 export function calculateHistoricalSavings(
   expenses: Expense[],
   periods: Period[]
 ): HistoricalSavings {
+  // 1. Ahorro DelaySpend total acumulado
   let delaySpendSavings = 0;
-  let incomeLeftoverSavings = 0;
-
-  // DelaySpend savings: acumular TODOS los gastos delayed y savedExtraAmount (sin filtrar por período)
   for (const exp of expenses) {
     if (exp.type === 'delayed') {
       delaySpendSavings += exp.amount;
@@ -33,37 +31,37 @@ export function calculateHistoricalSavings(
     }
   }
 
-  // Sobrante de ingreso: solo para períodos CERRADOS con income asignado
-  const closedPeriods = periods.filter(
-    (p) => p.endDate !== null && p.initialIncome > 0 && !p.deletedAt
-  );
+  // 2. Sobrante de ingresos en períodos ya cerrados
+  let incomeLeftoverSavings = 0;
+  let closedPeriodsCount = 0;
+
+  const closedPeriods = periods.filter((p) => p.endDate !== null && !p.deletedAt);
 
   for (const period of closedPeriods) {
     const periodExpenses = expenses.filter((e) => isExpenseInPeriod(e, period));
-    let totalReal = 0;
-    let totalDelayed = 0;
+
+    let periodReal = 0;
+    let periodExtraIncome = 0;
     for (const exp of periodExpenses) {
       if (exp.type === 'real') {
-        totalReal += exp.amount;
-        if (exp.savedExtraAmount && exp.savedExtraAmount > 0) {
-          totalDelayed += exp.savedExtraAmount;
-        }
-      } else if (exp.type === 'delayed') {
-        totalDelayed += exp.amount;
+        periodReal += exp.amount;
+      } else if (exp.type === 'income') {
+        periodExtraIncome += exp.amount;
       }
     }
-    const totalAccounted = totalReal + totalDelayed;
-    const leftover = period.initialIncome - totalAccounted;
-    if (leftover > 0) {
+
+    const effectiveIncome = (period.initialIncome || 0) + periodExtraIncome;
+    if (effectiveIncome > 0) {
+      const leftover = Math.max(0, effectiveIncome - periodReal);
       incomeLeftoverSavings += leftover;
+      closedPeriodsCount++;
     }
   }
 
   return {
-    delaySpendSavings,
-    incomeLeftoverSavings,
-    totalSavings: delaySpendSavings + incomeLeftoverSavings,
-    periodsCount: closedPeriods.length,
+    delaySpendSavings: Math.round(delaySpendSavings * 100) / 100,
+    incomeLeftoverSavings: Math.round(incomeLeftoverSavings * 100) / 100,
+    totalSavings: Math.round((delaySpendSavings + incomeLeftoverSavings) * 100) / 100,
+    closedPeriodsCount,
   };
 }
-

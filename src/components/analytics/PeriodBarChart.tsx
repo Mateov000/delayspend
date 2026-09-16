@@ -18,11 +18,12 @@ interface PeriodBarData {
   hasIncome: boolean;
   totalReal: number;
   totalDelayed: number;
+  totalExtraIncome: number;
   totalAccounted: number;
   sobrante: number;
   excedente: number;
   isOver: boolean;
-  savingsRate: number; // % ahorrado respecto al ingreso (sobrante + delay) / ingreso
+  savingsRate: number;
 }
 
 function buildPeriodBars(expenses: Expense[], periods: Period[]): PeriodBarData[] {
@@ -34,6 +35,7 @@ function buildPeriodBars(expenses: Expense[], periods: Period[]): PeriodBarData[
     const periodExpenses = expenses.filter((e) => isExpenseInPeriod(e, period));
     let totalReal = 0;
     let totalDelayed = 0;
+    let totalExtraIncome = 0;
 
     for (const exp of periodExpenses) {
       if (exp.type === 'real') {
@@ -43,11 +45,13 @@ function buildPeriodBars(expenses: Expense[], periods: Period[]): PeriodBarData[
         }
       } else if (exp.type === 'delayed') {
         totalDelayed += exp.amount;
+      } else if (exp.type === 'income') {
+        totalExtraIncome += exp.amount;
       }
     }
 
     const totalAccounted = totalReal + totalDelayed;
-    const initialIncome = period.initialIncome || 0;
+    const initialIncome = (period.initialIncome || 0) + totalExtraIncome;
     const hasIncome = initialIncome > 0;
     const sobrante = hasIncome ? Math.max(0, initialIncome - totalAccounted) : 0;
     const excedente = hasIncome ? Math.max(0, totalAccounted - initialIncome) : 0;
@@ -64,6 +68,7 @@ function buildPeriodBars(expenses: Expense[], periods: Period[]): PeriodBarData[
       hasIncome,
       totalReal,
       totalDelayed,
+      totalExtraIncome,
       totalAccounted,
       sobrante,
       excedente,
@@ -86,13 +91,11 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
     );
   }
 
-  // Máxima escala para el modo proporcional (mayor ingreso o mayor gasto registrado)
   const maxScale = Math.max(
     ...bars.map((b) => Math.max(b.initialIncome, b.totalAccounted)),
     1
   );
 
-  // Mostrar los últimos 8 períodos más recientes
   const visibleBars = bars.slice(-8);
 
   return (
@@ -131,7 +134,6 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
       {/* Lista de barras de períodos */}
       <div className="flex flex-col gap-4">
         {visibleBars.map((bar) => {
-          // Cálculo de anchos según el modo elegido
           let realWidth = 0;
           let delayedWidth = 0;
           let sobranteWidth = 0;
@@ -148,7 +150,6 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
               ? Math.max(0, budgetBoundaryWidth - (realWidth + delayedWidth))
               : 0;
           } else {
-            // Modo % del ingreso propio
             const base = bar.hasIncome ? bar.initialIncome : Math.max(bar.totalAccounted, 1);
             realWidth = Math.min(100, (bar.totalReal / base) * 100);
             delayedWidth = Math.min(100 - realWidth, (bar.totalDelayed / base) * 100);
@@ -200,7 +201,6 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
 
               {/* Contenedor de la barra visual */}
               <div className="relative w-full h-3.5 bg-slate-200/60 rounded-full overflow-hidden flex items-center">
-                {/* Segmento Gasto Real (Rosa) */}
                 {realWidth > 0 && (
                   <div
                     className="bg-rose-500 h-full transition-all duration-300 first:rounded-l-full"
@@ -209,7 +209,6 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
                   />
                 )}
 
-                {/* Segmento DelaySpend (Esmeralda) */}
                 {delayedWidth > 0 && (
                   <div
                     className="bg-emerald-500 h-full transition-all duration-300"
@@ -218,7 +217,6 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
                   />
                 )}
 
-                {/* Segmento Sobrante de Ingreso (Verde menta suave) */}
                 {sobranteWidth > 0 && (
                   <div
                     className="bg-emerald-100/90 h-full border-l border-emerald-200/60 transition-all duration-300"
@@ -227,7 +225,6 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
                   />
                 )}
 
-                {/* Marcador visual del límite de ingreso si hubo excedente */}
                 {hasOverrun && mode === 'proportional' && (
                   <div
                     className="absolute top-0 bottom-0 w-0.5 bg-rose-700 z-10 shadow-xs"

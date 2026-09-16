@@ -21,8 +21,8 @@ export function HistoricalSavingsCard({ savings }: HistoricalSavingsCardProps) {
             Ahorro Acumulado
           </p>
           <p className="text-[11px] text-emerald-200/70">
-            {savings.periodsCount > 0
-              ? `A lo largo de ${savings.periodsCount} período${savings.periodsCount !== 1 ? 's' : ''} cerrado${savings.periodsCount !== 1 ? 's' : ''}`
+            {savings.closedPeriodsCount > 0
+              ? `A lo largo de ${savings.closedPeriodsCount} período${savings.closedPeriodsCount !== 1 ? 's' : ''} cerrado${savings.closedPeriodsCount !== 1 ? 's' : ''}`
               : 'Historial completo'}
           </p>
         </div>

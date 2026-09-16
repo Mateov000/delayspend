@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Expense } from '../../store/types';
 import { CATEGORIES } from '../../constants/categories';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatDayMonth } from '../../utils/format';
+import { Tag, X } from 'lucide-react';
 
 interface CategoryDonutChartProps {
   expenses: Expense[];
@@ -100,6 +101,16 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
     [expenses]
   );
 
+  const activeSlice = activeIdx !== null ? slices[activeIdx] : null;
+
+  // Gastos reales de la categoría seleccionada para el desglose detallado
+  const categoryExpenses = useMemo(() => {
+    if (!activeSlice) return [];
+    return expenses
+      .filter((e) => e.type === 'real' && e.categoryId === activeSlice.categoryId)
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [expenses, activeSlice]);
+
   if (slices.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-40 text-slate-400 text-sm gap-1">
@@ -116,7 +127,6 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
   const size = 160;
 
   const arcs = computeArcs(slices, activeIdx, cx, cy, rOuter);
-  const activeSlice = activeIdx !== null ? slices[activeIdx] : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -192,7 +202,7 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
           </svg>
         </div>
 
-        {/* Leyenda */}
+        {/* Leyenda clickeable */}
         <div className="flex flex-col gap-1.5 min-w-0">
           {slices.slice(0, 6).map((slice, i) => (
             <button
@@ -221,13 +231,74 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
         </div>
       </div>
 
+      {/* Banner de categoría activa */}
       {activeSlice && (
         <div
           className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs"
           style={{ backgroundColor: activeSlice.color + '18', border: `1px solid ${activeSlice.color}40` }}
         >
-          <span className="font-semibold text-slate-700">{activeSlice.name}</span>
-          <span className="font-black text-slate-900">{formatCurrency(activeSlice.amount)}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-slate-800">{activeSlice.name}</span>
+            <span className="text-[10px] text-slate-500 font-medium">({activeSlice.percentage.toFixed(0)}% del total)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-black text-slate-900">{formatCurrency(activeSlice.amount)}</span>
+            <button
+              type="button"
+              onClick={() => setActiveIdx(null)}
+              className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+              title="Cerrar desglose"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* DESGLOSE DETALLADO DE GASTOS DE LA CATEGORÍA SELECCIONADA */}
+      {activeSlice && categoryExpenses.length > 0 && (
+        <div className="flex flex-col gap-1.5 pt-1">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              {categoryExpenses.length} gasto{categoryExpenses.length !== 1 ? 's' : ''} en {activeSlice.name}
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">Tocá un gasto o cerrá</span>
+          </div>
+
+          <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto pr-0.5">
+            {categoryExpenses.map((exp) => (
+              <div
+                key={exp.id}
+                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100/90 text-xs hover:border-slate-200 transition-colors"
+              >
+                <div className="flex flex-col min-w-0 pr-2">
+                  <span className="font-semibold text-slate-800 truncate leading-snug">
+                    {exp.description}
+                  </span>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                    <span>{formatDayMonth(exp.date)}</span>
+                    {exp.savedExtraAmount && exp.savedExtraAmount > 0 && (
+                      <span className="text-emerald-700 font-bold bg-emerald-50 px-1 rounded-sm border border-emerald-200/60">
+                        💡 +{formatCurrency(exp.savedExtraAmount)} ahorro
+                      </span>
+                    )}
+                    {exp.tags && exp.tags.length > 0 && (
+                      <span className="flex items-center gap-0.5 text-slate-500 font-medium">
+                        <Tag className="w-2.5 h-2.5" />
+                        {exp.tags.join(', ')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end shrink-0">
+                  <span className="font-bold text-slate-900">
+                    -{formatCurrency(exp.amount)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

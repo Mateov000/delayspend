@@ -5,7 +5,7 @@ import { STRINGS } from '../../constants/strings';
 import { formatCurrency } from '../../utils/format';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { Badge } from '../ui/Badge';
-import { Tag, MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors } from 'lucide-react';
+import { Tag, MoreVertical, Edit2, Trash2, CheckCircle, RotateCcw, Scissors, TrendingUp } from 'lucide-react';
 
 interface ExpenseListItemProps {
   expense: Expense;
@@ -25,22 +25,37 @@ export function ExpenseListItem({
   const [showMenu, setShowMenu] = useState(false);
   const category = getCategoryById(expense.categoryId);
   const isReal = expense.type === 'real';
+  const isIncome = expense.type === 'income';
   const isTransferred = Boolean(expense.transferredAt);
   const hasCheaperSavings = Boolean(isReal && expense.savedExtraAmount && expense.savedExtraAmount > 0);
-  const canTransfer = !isReal || hasCheaperSavings;
+  const canTransfer = !isReal && !isIncome || hasCheaperSavings;
   const hasInstallments = Boolean(
     expense.installmentGroupId && expense.installmentTotal && expense.installmentTotal > 1
   );
   const hasTags = Boolean(expense.tags && expense.tags.length > 0);
 
   return (
-    <div className="relative flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition-colors">
-      {/* Left: Category Icon & Details */}
+    <div
+      className={`relative flex items-center justify-between p-3.5 rounded-2xl border shadow-xs transition-colors ${
+        isIncome
+          ? 'bg-emerald-50/40 border-emerald-200/70 hover:border-emerald-300'
+          : 'bg-white border-slate-100 hover:border-slate-200'
+      }`}
+    >
+      {/* Left: Category / Income Icon & Details */}
       <div className="flex items-center gap-3 min-w-0 pr-2">
         <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${category.badgeBg} ${category.textColor}`}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            isIncome
+              ? 'bg-emerald-100 text-emerald-700 border border-emerald-300/80'
+              : `${category.badgeBg} ${category.textColor}`
+          }`}
         >
-          <CategoryIcon name={category.icon} className="w-5 h-5" />
+          {isIncome ? (
+            <TrendingUp className="w-5 h-5 stroke-[2.5]" />
+          ) : (
+            <CategoryIcon name={category.icon} className="w-5 h-5" />
+          )}
         </div>
 
         <div className="flex flex-col min-w-0">
@@ -50,13 +65,19 @@ export function ExpenseListItem({
 
           {/* Badges row */}
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span className="text-[11px] font-medium text-slate-400">{category.name}</span>
-
-            <span className="text-slate-300">•</span>
-
-            <Badge variant={isReal ? 'real' : 'delayed'} size="sm">
-              {isReal ? STRINGS.HISTORY_BADGE_REAL : STRINGS.HISTORY_BADGE_DELAYED}
-            </Badge>
+            {isIncome ? (
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                💰 Ingreso extra
+              </span>
+            ) : (
+              <>
+                <span className="text-[11px] font-medium text-slate-400">{category.name}</span>
+                <span className="text-slate-300">•</span>
+                <Badge variant={isReal ? 'real' : 'delayed'} size="sm">
+                  {isReal ? STRINGS.HISTORY_BADGE_REAL : STRINGS.HISTORY_BADGE_DELAYED}
+                </Badge>
+              </>
+            )}
 
             {/* Cuota badge */}
             {hasInstallments && expense.installmentNumber && expense.installmentTotal && (
@@ -73,7 +94,7 @@ export function ExpenseListItem({
               </span>
             )}
 
-            {/* Transfer status badge */}
+            {/* Transfer status badge (solo para delayed o ahorro opción barata) */}
             {canTransfer && (
               <button
                 type="button"
@@ -127,11 +148,15 @@ export function ExpenseListItem({
       <div className="flex items-center gap-2 shrink-0">
         <div className="flex flex-col items-end">
           <span
-            className={`text-base font-bold tracking-tight ${
-              isReal ? 'text-slate-900' : 'text-emerald-700 font-extrabold'
+            className={`text-base font-extrabold tracking-tight ${
+              isIncome
+                ? 'text-emerald-700'
+                : isReal
+                ? 'text-slate-900 font-bold'
+                : 'text-emerald-700 font-extrabold'
             }`}
           >
-            {isReal ? '-' : '+'}
+            {isIncome ? '+' : isReal ? '-' : '+'}
             {formatCurrency(expense.amount)}
           </span>
           {hasCheaperSavings && (
@@ -155,7 +180,6 @@ export function ExpenseListItem({
           {/* Menú Flotante */}
           {showMenu && (
             <>
-              {/* Backdrop for closing menu */}
               <div className="fixed inset-0 z-20" onClick={() => setShowMenu(false)} />
 
               <div className="absolute right-0 top-8 z-30 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">

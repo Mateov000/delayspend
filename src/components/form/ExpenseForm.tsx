@@ -13,6 +13,7 @@ import { TagInput } from './TagInput';
 import {
   ArrowDownLeft,
   ShieldCheck,
+  TrendingUp,
   PiggyBank,
   X,
   CreditCard,
@@ -49,7 +50,7 @@ export function ExpenseForm({
   const [categoryId, setCategoryId] = useState<CategoryId>(initialValues?.categoryId ?? 'food');
   const [date, setDate] = useState<string>(initialValues?.date ?? todayStr);
 
-  // Opción más barata / sobreprecio evitado
+  // Opción más barata / sobreprecio evitado (solo en real)
   const [hasCheaperOption, setHasCheaperOption] = useState<boolean>(
     Boolean(initialValues?.savedExtraAmount && initialValues.savedExtraAmount > 0)
   );
@@ -63,7 +64,7 @@ export function ExpenseForm({
     Boolean(initialValues?.tags && initialValues.tags.length > 0)
   );
 
-  // Cuotas
+  // Cuotas (solo en real)
   const [hasInstallments, setHasInstallments] = useState<boolean>(
     Boolean(initialValues?.installmentTotal && initialValues.installmentTotal > 1)
   );
@@ -76,11 +77,10 @@ export function ExpenseForm({
     new Set(expenses.flatMap((e) => e.tags ?? []))
   ).sort();
 
-  // Control de presupuesto por categoría
+  // Control de presupuesto por categoría (solo aplica a gastos reales)
   const categoryBudget = getBudgetForCategory(categoryId);
   const currentCategorySpent = getSpentForCategory(expenses, categoryId);
   const parsedAmount = parseFloat(amountStr.replace(',', '.')) || 0;
-  // Si estamos editando, descontamos el monto previo de este gasto
   const previousAmount = isEditing && initialValues ? initialValues.amount : 0;
   const projectedCategorySpent = currentCategorySpent - previousAmount + parsedAmount;
   const isBudgetExceeded =
@@ -106,7 +106,10 @@ export function ExpenseForm({
     }
 
     if (!description.trim()) {
-      showToast(STRINGS.TOAST_ERROR_NO_DESCRIPTION, 'error');
+      showToast(
+        type === 'income' ? 'Ingresá el motivo o concepto del ingreso.' : STRINGS.TOAST_ERROR_NO_DESCRIPTION,
+        'error'
+      );
       return;
     }
 
@@ -122,14 +125,14 @@ export function ExpenseForm({
       type,
       amount: cleanAmount,
       description: description.trim(),
-      categoryId,
+      categoryId: type === 'income' ? 'other' : categoryId,
       date: date || todayStr,
       savedExtraAmount: cleanSavedExtra,
       periodId: initialValues?.periodId,
       tags: tags.length > 0 ? tags : undefined,
-      installmentGroupId: hasInstallments ? (initialValues?.installmentGroupId ?? null) : null,
-      installmentNumber: hasInstallments ? (initialValues?.installmentNumber ?? 1) : null,
-      installmentTotal: hasInstallments ? installmentCount : null,
+      installmentGroupId: type === 'real' && hasInstallments ? (initialValues?.installmentGroupId ?? null) : null,
+      installmentNumber: type === 'real' && hasInstallments ? (initialValues?.installmentNumber ?? 1) : null,
+      installmentTotal: type === 'real' && hasInstallments ? installmentCount : null,
     });
   };
 
@@ -137,43 +140,55 @@ export function ExpenseForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {/* 1. Selector de Tipo (Segmented Control Grande) */}
+      {/* 1. Selector de Tipo (Segmented Control 3 opciones) */}
       <div className="flex flex-col gap-1.5">
-        <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl">
+        <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-slate-100 rounded-2xl">
           <button
             type="button"
             onClick={() => setType('real')}
-            className={`flex flex-col items-center justify-center py-2.5 px-3 rounded-xl font-semibold transition-all cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl font-semibold transition-all cursor-pointer ${
               type === 'real'
                 ? 'bg-white text-rose-700 shadow-sm border border-rose-100'
                 : 'text-slate-600 hover:text-slate-800'
             }`}
           >
-            <div className="flex items-center gap-1.5">
-              <ArrowDownLeft className="w-4 h-4" />
-              <span className="text-sm">{STRINGS.FORM_TYPE_REAL}</span>
+            <div className="flex items-center gap-1">
+              <ArrowDownLeft className="w-3.5 h-3.5" />
+              <span className="text-xs font-bold">Gasto Real</span>
             </div>
-            <span className="text-[10px] text-slate-400 font-normal">
-              {STRINGS.FORM_TYPE_REAL_DESC}
-            </span>
+            <span className="text-[9px] text-slate-400 font-normal">Plata que salió</span>
           </button>
 
           <button
             type="button"
             onClick={() => setType('delayed')}
-            className={`flex flex-col items-center justify-center py-2.5 px-3 rounded-xl font-semibold transition-all cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl font-semibold transition-all cursor-pointer ${
               type === 'delayed'
                 ? 'bg-white text-emerald-700 shadow-sm border border-emerald-100 ring-2 ring-emerald-500/20'
                 : 'text-slate-600 hover:text-slate-800'
             }`}
           >
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4" />
-              <span className="text-sm">{STRINGS.FORM_TYPE_DELAYED}</span>
+            <div className="flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span className="text-xs font-bold">DelaySpend</span>
             </div>
-            <span className="text-[10px] text-slate-400 font-normal">
-              {STRINGS.FORM_TYPE_DELAYED_DESC}
-            </span>
+            <span className="text-[9px] text-slate-400 font-normal">Plata ahorrada</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setType('income')}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl font-semibold transition-all cursor-pointer ${
+              type === 'income'
+                ? 'bg-white text-teal-700 shadow-sm border border-teal-100 ring-2 ring-teal-500/20'
+                : 'text-slate-600 hover:text-slate-800'
+            }`}
+          >
+            <div className="flex items-center gap-1">
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span className="text-xs font-bold">Ingreso Extra</span>
+            </div>
+            <span className="text-[9px] text-slate-400 font-normal">Suma al período</span>
           </button>
         </div>
       </div>
@@ -184,15 +199,19 @@ export function ExpenseForm({
           htmlFor="expense-amount"
           className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1"
         >
-          {STRINGS.FORM_AMOUNT_LABEL}
+          {type === 'income' ? 'Monto del Ingreso Extra' : STRINGS.FORM_AMOUNT_LABEL}
         </label>
         <div className="flex items-center justify-center text-slate-900 w-full">
           <span
             className={`text-4xl font-extrabold mr-1 ${
-              type === 'real' ? 'text-rose-600' : 'text-emerald-600'
+              type === 'real'
+                ? 'text-rose-600'
+                : type === 'delayed'
+                ? 'text-emerald-600'
+                : 'text-teal-600'
             }`}
           >
-            $
+            {type === 'income' ? '+$' : '$'}
           </span>
           <input
             id="expense-amount"
@@ -207,7 +226,7 @@ export function ExpenseForm({
           />
         </div>
 
-        {/* Advertencia de presupuesto superado */}
+        {/* Advertencia de presupuesto superado (solo para gastos reales) */}
         {isBudgetExceeded && (
           <div className="flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200/80 px-3 py-1 rounded-full text-xs font-medium mt-2">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
@@ -219,7 +238,7 @@ export function ExpenseForm({
         )}
       </div>
 
-      {/* 3. Opción más barata / Ahorro extra DelaySpend */}
+      {/* 3. Opción más barata / Ahorro extra DelaySpend (solo en real) */}
       {type === 'real' && (
         <div className="flex flex-col gap-3 p-3.5 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl shadow-2xs">
           <div
@@ -316,34 +335,36 @@ export function ExpenseForm({
         </div>
       )}
 
-      {/* 4. Selector de Categorías (Cuadrícula táctil) */}
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          {STRINGS.FORM_CATEGORY_LABEL}
-        </label>
-        <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1">
-          {CATEGORIES.map((cat) => {
-            const isSelected = categoryId === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setCategoryId(cat.id)}
-                className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all cursor-pointer text-center ${
-                  isSelected
-                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400 ring-offset-1'
-                    : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'
-                }`}
-              >
-                <CategoryIcon name={cat.icon} className="w-5 h-5" />
-                <span className="text-[10px] font-medium leading-tight line-clamp-1">
-                  {cat.name.split('&')[0]?.trim()}
-                </span>
-              </button>
-            );
-          })}
+      {/* 4. Selector de Categorías (solo para gastos reales y delayeadas) */}
+      {type !== 'income' && (
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            {STRINGS.FORM_CATEGORY_LABEL}
+          </label>
+          <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1">
+            {CATEGORIES.map((cat) => {
+              const isSelected = categoryId === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setCategoryId(cat.id)}
+                  className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all cursor-pointer text-center ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400 ring-offset-1'
+                      : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'
+                  }`}
+                >
+                  <CategoryIcon name={cat.icon} className="w-5 h-5" />
+                  <span className="text-[10px] font-medium leading-tight line-clamp-1">
+                    {cat.name.split('&')[0]?.trim()}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 5. Campo de Detalle / Concepto */}
       <div className="flex flex-col gap-1.5">
@@ -351,14 +372,18 @@ export function ExpenseForm({
           htmlFor="expense-desc"
           className="text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
-          {STRINGS.FORM_DESCRIPTION_LABEL}
+          {type === 'income' ? 'Concepto o Motivo del Ingreso' : STRINGS.FORM_DESCRIPTION_LABEL}
         </label>
         <input
           id="expense-desc"
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder={STRINGS.FORM_DESCRIPTION_PLACEHOLDER}
+          placeholder={
+            type === 'income'
+              ? 'Ej: Transferencia de mamá, Cobro freelance, Bono...'
+              : STRINGS.FORM_DESCRIPTION_PLACEHOLDER
+          }
           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
         />
       </div>
@@ -369,7 +394,7 @@ export function ExpenseForm({
           htmlFor="expense-date"
           className="text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
-          {STRINGS.FORM_DATE_LABEL}
+          {type === 'income' ? 'Fecha del Ingreso' : STRINGS.FORM_DATE_LABEL}
         </label>
         <input
           id="expense-date"
@@ -492,12 +517,15 @@ export function ExpenseForm({
       <div className="flex flex-col gap-2 pt-2">
         <Button
           type="submit"
-          variant={type === 'delayed' ? 'delayed' : 'primary'}
+          variant={type === 'income' ? 'primary' : type === 'delayed' ? 'delayed' : 'primary'}
           size="lg"
           fullWidth
+          className={type === 'income' ? 'bg-teal-600 hover:bg-teal-700 text-white' : ''}
         >
           {isEditing
             ? STRINGS.FORM_SUBMIT_EDIT
+            : type === 'income'
+            ? 'Registrar Ingreso Extra'
             : type === 'delayed'
             ? STRINGS.FORM_SUBMIT_DELAYED
             : STRINGS.FORM_SUBMIT_REAL}

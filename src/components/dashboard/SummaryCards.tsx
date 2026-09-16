@@ -21,7 +21,6 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
         onTransferClick={onTransferClick}
       />
 
-      {/* 2. Grid de Total Gastado vs Total Guardado */}
       {/* 2. Tarjeta de Ingreso Asignado y Saldo Remanente del Período */}
       {hasIncome && (
         <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-4 rounded-2xl shadow-sm border border-slate-800 flex flex-col gap-3">
@@ -37,6 +36,11 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
                 <span className="text-base font-extrabold text-white">
                   {formatCurrency(metrics.initialIncome)}
                 </span>
+                {metrics.extraIncome > 0 && (
+                  <span className="text-[9px] text-emerald-300 font-medium block">
+                    (Base: {formatCurrency(metrics.baseIncome)} + Extra: +{formatCurrency(metrics.extraIncome)})
+                  </span>
+                )}
               </div>
             </div>
 
@@ -71,24 +75,33 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
                   Math.max(0, (metrics.totalDelayed / metrics.initialIncome) * 100)
                 )}%`,
               }}
-              title={`Ahorrado: ${formatCurrency(metrics.totalDelayed)}`}
+              title={`DelaySpend: ${formatCurrency(metrics.totalDelayed)}`}
             />
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-300 pt-0.5">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
-              <span>Gastado real: <strong>{formatCurrency(metrics.totalReal)}</strong></span>
+          {/* Leyenda y detalles del saldo */}
+          <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1 border-t border-white/10">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                <span>Gastado: <strong>{formatCurrency(metrics.totalReal)}</strong></span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                <span>Delay: <strong>{formatCurrency(metrics.totalDelayed)}</strong></span>
+              </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-              <span>DelaySpend: <strong>{formatCurrency(metrics.totalDelayed)}</strong></span>
-            </div>
+
+            <span className="text-[10px] font-semibold text-slate-400">
+              {metrics.initialIncome > 0
+                ? `${Math.round(((metrics.totalReal + metrics.totalDelayed) / metrics.initialIncome) * 100)}% usado`
+                : ''}
+            </span>
           </div>
         </div>
       )}
 
-      {/* 3. Grid de Total Gastado vs Total Guardado */}
+      {/* 3. Grid de Gastado vs Guardado */}
       <div className="grid grid-cols-2 gap-3">
         <MetricCard
           title={STRINGS.METRICS_REAL_TITLE}
@@ -101,13 +114,12 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
         <MetricCard
           title={STRINGS.METRICS_DELAYED_TITLE}
           amount={metrics.totalDelayed}
-          subtitle={STRINGS.METRICS_DELAYED_SUBTITLE}
+          subtitle={`${metrics.delayRatePercentage}% de tus compras`}
           icon={<ShieldCheck className="w-4 h-4" />}
           variant="delayed"
         />
       </div>
 
-      {/* 3. Indicador sutil de total rendido (ideal para padres) */}
       {/* 4. Indicador sutil de total rendido (ideal para padres) */}
       <div className="flex items-center justify-between px-3.5 py-2 bg-slate-100/80 rounded-xl border border-slate-200/50 text-xs">
         <span className="font-semibold text-slate-500">
@@ -120,4 +132,3 @@ export function SummaryCards({ metrics, onTransferClick }: SummaryCardsProps) {
     </div>
   );
 }
-

@@ -14,6 +14,7 @@ export function calculateMetrics(
   let totalDelayed = 0;
   let pendingTransfer = 0;
   let totalTransferred = 0;
+  let extraIncome = 0;
 
   for (const exp of filtered) {
     if (exp.type === 'real') {
@@ -34,13 +35,16 @@ export function calculateMetrics(
       } else {
         totalTransferred += exp.amount;
       }
+    } else if (exp.type === 'income') {
+      extraIncome += exp.amount;
     }
   }
 
-  const initialIncome = period ? period.initialIncome : 0;
+  const baseIncome = period ? period.initialIncome : 0;
+  const totalIncome = baseIncome + extraIncome;
   const totalAccounted = totalReal + totalDelayed;
-  const remainingBalance = initialIncome - totalAccounted;
-  const freeBalance = initialIncome - totalAccounted;
+  const remainingBalance = totalIncome - totalAccounted;
+  const freeBalance = totalIncome - totalAccounted;
   const delayRatePercentage =
     totalAccounted > 0 ? Math.round((totalDelayed / totalAccounted) * 100) : 0;
 
@@ -51,9 +55,10 @@ export function calculateMetrics(
     totalTransferred,
     totalAccounted,
     delayRatePercentage,
-    initialIncome,
+    initialIncome: totalIncome,
+    baseIncome,
+    extraIncome,
     remainingBalance,
     freeBalance,
   };
 }
-

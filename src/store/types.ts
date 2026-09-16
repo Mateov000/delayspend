@@ -1,4 +1,4 @@
-export type ExpenseType = 'real' | 'delayed';
+export type ExpenseType = 'real' | 'delayed' | 'income';
 
 export type CategoryId =
   | 'food'
@@ -23,9 +23,9 @@ export interface Category {
 
 export interface Expense {
   id: string; // UUID v4 (coincidente con PostgreSQL UUID)
-  type: ExpenseType; // 'real': plata gastada | 'delayed': compra postergada
+  type: ExpenseType; // 'real': gasto | 'delayed': compra postergada | 'income': ingreso extra
   amount: number; // Monto mayor a 0, redondeado a 2 decimales
-  description: string; // Concepto o justificación de la compra
+  description: string; // Concepto o justificación
   categoryId: CategoryId; // Categoría normalizada
   date: string; // Formato ISO 'YYYY-MM-DD'
   transferredAt: string | null; // ISO 8601 de la transferencia (null si no aplica o pendiente)
@@ -68,7 +68,9 @@ export interface FinancialMetrics {
   totalTransferred: number;    // Delayeados ya transferidos (transferredAt !== null)
   totalAccounted: number;      // Total a rendir (real + delayed)
   delayRatePercentage: number; // (totalDelayed / totalAccounted) * 100
-  initialIncome: number;       // Ingreso asignado al período (ej: $50.000)
+  initialIncome: number;       // Ingreso total efectivo (base + extras)
+  baseIncome: number;          // Ingreso base inicial del período
+  extraIncome: number;         // Suma de ingresos extras registrados en el período
   remainingBalance: number;    // initialIncome - totalAccounted (saldo disponible restando real y delay)
   freeBalance: number;         // initialIncome - totalAccounted
 }

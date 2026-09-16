@@ -59,9 +59,12 @@ function mapRowToExpense(row: DbExpenseRow): Expense {
       ? Number(row.saved_extra_amount)
       : undefined;
 
+  const validTypes = ['real', 'delayed', 'income'];
+  const expenseType = validTypes.includes(row.type) ? (row.type as Expense['type']) : 'real';
+
   return {
     id: row.id,
-    type: row.type === 'real' ? 'real' : 'delayed',
+    type: expenseType,
     amount: Number(row.amount),
     description: row.description,
     categoryId: row.category_id as Expense['categoryId'],
