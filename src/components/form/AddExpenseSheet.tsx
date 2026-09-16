@@ -9,12 +9,14 @@ interface AddExpenseSheetProps {
   isOpen: boolean;
   onClose: () => void;
   editingExpense?: Expense | null;
+  defaultDate?: string;
 }
 
 export function AddExpenseSheet({
   isOpen,
   onClose,
   editingExpense,
+  defaultDate,
 }: AddExpenseSheetProps) {
   const { addExpense, updateExpense } = useExpenseStore();
   const { showToast } = useToastStore();
@@ -41,6 +43,14 @@ export function AddExpenseSheet({
         description: editingExpense.description,
         categoryId: editingExpense.categoryId,
         date: editingExpense.date,
+      }
+    : defaultDate
+    ? {
+        type: 'delayed',
+        amount: 0,
+        description: '',
+        categoryId: 'food',
+        date: defaultDate,
       }
     : undefined;
 

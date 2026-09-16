@@ -1,11 +1,14 @@
-import { Expense, PeriodFilterState, FinancialMetrics } from '../store/types';
-import { isWithinPeriod } from './date';
+import { Expense, Period, PeriodFilterState, FinancialMetrics } from '../store/types';
+import { isExpenseMatchingFilter } from './date';
 
 export function calculateMetrics(
   expenses: Expense[],
-  filter: PeriodFilterState
+  filter: PeriodFilterState,
+  period?: Period | null
 ): FinancialMetrics {
-  const filtered = expenses.filter((expense) => isWithinPeriod(expense.date, filter));
+  const filtered = expenses.filter((expense) =>
+    isExpenseMatchingFilter(expense, filter, period)
+  );
 
   let totalReal = 0;
   let totalDelayed = 0;
@@ -25,6 +28,10 @@ export function calculateMetrics(
     }
   }
 
+  const initialIncome = period ? period.initialIncome : 0;
+  const remainingBalance = initialIncome - totalReal;
+  const freeBalance = initialIncome - totalReal - pendingTransfer;
+
   const totalAccounted = totalReal + totalDelayed;
   const delayRatePercentage =
     totalAccounted > 0 ? Math.round((totalDelayed / totalAccounted) * 100) : 0;
@@ -36,6 +43,8 @@ export function calculateMetrics(
     totalTransferred,
     totalAccounted,
     delayRatePercentage,
+    initialIncome,
+    remainingBalance,
+    freeBalance,
   };
 }
-

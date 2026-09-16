@@ -1,0 +1,278 @@
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { Period } from './types';
+import { generateId } from '../utils/id';
+
+export interface CreatePeriodInput {
+  name?: string;
+  startDate?: string;
+  initialIncome?: number;
+}
+
+export interface PeriodState {
+  periods: Period[];
+  activePeriodId: string | 'all';
+
+  // Acciones principales
+  createCutoff: (input: CreatePeriodInput) => Period;
+  undoLastCutoff: () => { success: boolean; message?: string };
+  updatePeriod: (id: string, input: Partial<Period>) => void;
+  deletePeriod: (id: string) => void;
+  setActivePeriodId: (id: string | 'all') => void;
+  getActivePeriod: () => Period | null;
+
+  // Importación / Sincronización
+  setPeriods: (periods: Period[]) => void;
+}
+
+type PeriodSyncListener = (action: 'push' | 'delete', item: Period | string) => void;
+let periodSyncListener: PeriodSyncListener | null = null;
+
+export function registerPeriodSyncListener(listener: PeriodSyncListener) {
+  periodSyncListener = listener;
+}
+
+const STORAGE_KEY = 'delayspend_periods_v1';
+
+function sanitizePeriod(raw: unknown): Period | null {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const item = raw as Record<string, unknown>;
+  if (typeof item.id !== 'string' || !item.id) return null;
+  if (typeof item.name !== 'string') return null;
+  if (typeof item.startDate !== 'string' || !item.startDate) return null;
+
+  const initialIncome = Number(item.initialIncome) || 0;
+  const endDate = typeof item.endDate === 'string' && item.endDate ? item.endDate : null;
+  const createdAt = typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString();
+  const updatedAt = typeof item.updatedAt === 'string' ? item.updatedAt : createdAt;
+  const deletedAt = typeof item.deletedAt === 'string' ? item.deletedAt : null;
+
+  return {
+    id: item.id,
+    name: item.name,
+    startDate: item.startDate,
+    endDate,
+    initialIncome: Math.round(initialIncome * 100) / 100,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  };
+}
+
+// Función auxiliar para obtener la fecha de ayer a partir de una fecha YYYY-MM-DD
+function getDayBefore(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0]!;
+}
+
+export const usePeriodStore = create<PeriodState>()(
+  persist(
+    (set, get) => ({
+      periods: [],
+      activePeriodId: 'all',
+
+      getActivePeriod: () => {
+        const { periods, activePeriodId } = get();
+        if (activePeriodId === 'all') return null;
+        return periods.find((p) => p.id === activePeriodId) ?? null;
+      },
+
+      createCutoff: (input: CreatePeriodInput) => {
+        const now = new Date().toISOString();
+        const today = now.split('T')[0]!;
+        const startDate = input.startDate || today;
+        const initialIncome = Math.max(0, Math.round((Number(input.initialIncome) || 0) * 100) / 100);
+
+        const currentPeriods = [...get().periods];
+        const updatedList: Period[] = [];
+
+        // 1. Si existe un período abierto actual (endDate === null), lo cerramos
+        const openIndex = currentPeriods.findIndex((p) => p.endDate === null);
+        if (openIndex >= 0) {
+          const openPeriod = currentPeriods[openIndex]!;
+          // La fecha de fin del anterior es un día antes del inicio del nuevo
+          const closedEndDate = getDayBefore(startDate);
+          const closedPeriod: Period = {
+            ...openPeriod,
+            endDate: closedEndDate >= openPeriod.startDate ? closedEndDate : openPeriod.startDate,
+            updatedAt: now,
+          };
+          currentPeriods[openIndex] = closedPeriod;
+          updatedList.push(closedPeriod);
+          periodSyncListener?.('push', closedPeriod);
+        } else if (currentPeriods.length === 0) {
+          // Si no había ningún período creado previamente, creamos un "Período Inicial" para el historial previo
+          const initialPeriod: Period = {
+            id: generateId(),
+            name: 'Período Inicial',
+            startDate: '2026-01-01',
+            endDate: getDayBefore(startDate),
+            initialIncome: 0,
+            createdAt: now,
+            updatedAt: now,
+          };
+          currentPeriods.push(initialPeriod);
+          updatedList.push(initialPeriod);
+          periodSyncListener?.('push', initialPeriod);
+        }
+
+        // 2. Crear el nuevo período activo
+        const nextPeriodNumber = currentPeriods.length + 1;
+        const newPeriodName = input.name?.trim() || `Período ${nextPeriodNumber}`;
+
+        const newPeriod: Period = {
+          id: generateId(),
+          name: newPeriodName,
+          startDate,
+          endDate: null,
+          initialIncome,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        const finalPeriods = [newPeriod, ...currentPeriods];
+
+        set({
+          periods: finalPeriods,
+          activePeriodId: newPeriod.id,
+        });
+
+        periodSyncListener?.('push', newPeriod);
+        return newPeriod;
+      },
+
+      undoLastCutoff: () => {
+        const now = new Date().toISOString();
+        const currentPeriods = [...get().periods];
+
+        // Necesitamos al menos 2 períodos para poder deshacer el corte
+        if (currentPeriods.length < 2) {
+          return { success: false, message: 'No hay un corte anterior para deshacer.' };
+        }
+
+        // El período más nuevo (el abierto) es el primero si ordenamos por createdAt desc
+        const sorted = [...currentPeriods].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        const newestPeriod = sorted[0];
+        const previousPeriod = sorted[1];
+
+        if (!newestPeriod || !previousPeriod) {
+          return { success: false, message: 'No se encontraron períodos suficientes.' };
+        }
+
+        // 1. Eliminar el período más nuevo
+        const remainingPeriods = currentPeriods.filter((p) => p.id !== newestPeriod.id);
+
+        // 2. Reabrir el período inmediatamente anterior (endDate: null)
+        const updatedPrevious: Period = {
+          ...previousPeriod,
+          endDate: null,
+          updatedAt: now,
+        };
+
+        const finalPeriods = remainingPeriods.map((p) =>
+          p.id === updatedPrevious.id ? updatedPrevious : p
+        );
+
+        set({
+          periods: finalPeriods,
+          activePeriodId: updatedPrevious.id,
+        });
+
+        // Sincronizar en la nube: delete del newest y push del reabierto
+        periodSyncListener?.('delete', newestPeriod.id);
+        periodSyncListener?.('push', updatedPrevious);
+
+        return { success: true };
+      },
+
+      updatePeriod: (id: string, input: Partial<Period>) => {
+        const now = new Date().toISOString();
+        let updatedItem: Period | null = null;
+
+        set((state) => ({
+          periods: state.periods.map((p) => {
+            if (p.id !== id) return p;
+
+            updatedItem = {
+              ...p,
+              name: input.name !== undefined ? input.name.trim() : p.name,
+              startDate: input.startDate ?? p.startDate,
+              endDate: input.endDate !== undefined ? input.endDate : p.endDate,
+              initialIncome:
+                input.initialIncome !== undefined
+                  ? Math.max(0, Math.round(Number(input.initialIncome) * 100) / 100)
+                  : p.initialIncome,
+              updatedAt: now,
+            };
+
+            return updatedItem;
+          }),
+        }));
+
+        if (updatedItem) {
+          periodSyncListener?.('push', updatedItem);
+        }
+      },
+
+      deletePeriod: (id: string) => {
+        const { periods, activePeriodId } = get();
+        const updated = periods.filter((p) => p.id !== id);
+
+        set({
+          periods: updated,
+          activePeriodId: activePeriodId === id ? 'all' : activePeriodId,
+        });
+
+        periodSyncListener?.('delete', id);
+      },
+
+      setActivePeriodId: (id: string | 'all') => {
+        set({ activePeriodId: id });
+      },
+
+      setPeriods: (newPeriods: Period[]) => {
+        const valid = newPeriods
+          .map(sanitizePeriod)
+          .filter((p): p is Period => p !== null && !p.deletedAt);
+
+        set((state) => {
+          // Si el activePeriodId ya no existe en los nuevos períodos, elegimos el abierto o 'all'
+          const openPeriod = valid.find((p) => p.endDate === null);
+          const stillExists = valid.some((p) => p.id === state.activePeriodId);
+
+          return {
+            periods: valid,
+            activePeriodId: stillExists
+              ? state.activePeriodId
+              : openPeriod
+              ? openPeriod.id
+              : 'all',
+          };
+        });
+      },
+    }),
+    {
+      name: STORAGE_KEY,
+      storage: createJSONStorage(() => localStorage),
+      migrate: (persistedState: unknown) => {
+        if (!persistedState || typeof persistedState !== 'object') {
+          return { periods: [], activePeriodId: 'all' };
+        }
+        const state = persistedState as { periods?: unknown[]; activePeriodId?: string };
+        const cleanPeriods = Array.isArray(state.periods)
+          ? state.periods.map(sanitizePeriod).filter((p): p is Period => p !== null)
+          : [];
+
+        return {
+          periods: cleanPeriods,
+          activePeriodId: state.activePeriodId || 'all',
+        };
+      },
+    }
+  )
+);

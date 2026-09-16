@@ -1,10 +1,15 @@
-import { Expense, FinancialMetrics, PeriodFilterState } from '../store/types';
+import { Expense, FinancialMetrics, Period, PeriodFilterState } from '../store/types';
 import { getCategoryById } from '../constants/categories';
 import { formatCurrency, formatDayMonth } from './format';
 import { STRINGS } from '../constants/strings';
-import { isWithinPeriod } from './date';
+import { isExpenseMatchingFilter } from './date';
 
-function getPeriodLabel(filter: PeriodFilterState): string {
+function getPeriodLabel(filter: PeriodFilterState, period?: Period | null): string {
+  if (filter.type === 'custom_period' && period) {
+    const endStr = period.endDate ? formatDayMonth(period.endDate) : 'Presente';
+    return `${period.name} (${formatDayMonth(period.startDate)} al ${endStr})`;
+  }
+
   const now = new Date();
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -26,6 +31,7 @@ function getPeriodLabel(filter: PeriodFilterState): string {
 
 export interface ExportOptions {
   unified?: boolean;
+  period?: Period | null;
 }
 
 export function generateWhatsAppReport(
@@ -35,12 +41,13 @@ export function generateWhatsAppReport(
   options?: ExportOptions
 ): string {
   const unified = options?.unified ?? false;
-  const filtered = expenses.filter((e) => isWithinPeriod(e.date, filter));
+  const period = options?.period ?? null;
+  const filtered = expenses.filter((e) => isExpenseMatchingFilter(e, filter, period));
 
   const lines: string[] = [];
 
   lines.push(STRINGS.EXPORT_WHATSAPP_HEADER);
-  lines.push(`${STRINGS.EXPORT_WHATSAPP_PERIOD} ${getPeriodLabel(filter)}`);
+  lines.push(`${STRINGS.EXPORT_WHATSAPP_PERIOD} ${getPeriodLabel(filter, period)}`);
   lines.push('');
 
   if (unified) {
@@ -61,7 +68,13 @@ export function generateWhatsAppReport(
 
     // Resumen Financiero Unificado
     lines.push(STRINGS.EXPORT_WHATSAPP_SUMMARY_SECTION);
+    if (metrics.initialIncome > 0) {
+      lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(metrics.initialIncome)}`);
+    }
     lines.push(`${STRINGS.EXPORT_WHATSAPP_UNIFIED_TOTAL} ${formatCurrency(metrics.totalAccounted)}`);
+    if (metrics.initialIncome > 0) {
+      lines.push(`${STRINGS.EXPORT_WHATSAPP_REMAINING} ${formatCurrency(metrics.remainingBalance)}`);
+    }
     lines.push('');
     lines.push(STRINGS.EXPORT_WHATSAPP_FOOTER);
 
@@ -103,10 +116,16 @@ export function generateWhatsAppReport(
 
   // Sección de Resumen Financiero
   lines.push(STRINGS.EXPORT_WHATSAPP_SUMMARY_SECTION);
+  if (metrics.initialIncome > 0) {
+    lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(metrics.initialIncome)}`);
+  }
   lines.push(`${STRINGS.EXPORT_WHATSAPP_TOTAL_REAL} ${formatCurrency(metrics.totalReal)}`);
   lines.push(`${STRINGS.EXPORT_WHATSAPP_TOTAL_DELAYED} ${formatCurrency(metrics.totalDelayed)}`);
   lines.push(`${STRINGS.EXPORT_WHATSAPP_PENDING_TRANSFER} ${formatCurrency(metrics.pendingTransfer)}`);
   lines.push(`${STRINGS.EXPORT_WHATSAPP_TOTAL_BUDGET} ${formatCurrency(metrics.totalAccounted)}`);
+  if (metrics.initialIncome > 0) {
+    lines.push(`${STRINGS.EXPORT_WHATSAPP_REMAINING} ${formatCurrency(metrics.remainingBalance)}`);
+  }
   lines.push('');
   lines.push(STRINGS.EXPORT_WHATSAPP_FOOTER);
 
@@ -119,7 +138,8 @@ export function downloadExpensesCSV(
   options?: ExportOptions
 ): void {
   const unified = options?.unified ?? false;
-  const filtered = expenses.filter((e) => isWithinPeriod(e.date, filter));
+  const period = options?.period ?? null;
+  const filtered = expenses.filter((e) => isExpenseMatchingFilter(e, filter, period));
 
   const headers = unified
     ? ['Fecha', 'Monto', 'Categoría', 'Concepto / Detalle']
@@ -186,11 +206,11 @@ export function downloadExpensesCSV(
 
   const timestamp = new Date().toISOString().split('T')[0];
   const filenameSuffix = unified ? 'unificado' : 'detallado';
+  const periodSlug = period ? period.name.toLowerCase().replace(/[^a-z0-9]/g, '_') : filter.type;
   link.setAttribute('href', url);
-  link.setAttribute('download', `delayspend_rendicion_${filter.type}_${filenameSuffix}_${timestamp}.csv`);
+  link.setAttribute('download', `delayspend_rendicion_${periodSlug}_${filenameSuffix}_${timestamp}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
-

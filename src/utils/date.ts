@@ -1,8 +1,18 @@
-import { Expense, PeriodFilterState } from '../store/types';
+import { Expense, Period, PeriodFilterState } from '../store/types';
 import { formatDisplayDate } from './format';
 
-export function isWithinPeriod(dateStr: string, filter: PeriodFilterState): boolean {
+export function isWithinPeriod(
+  dateStr: string,
+  filter: PeriodFilterState,
+  period?: Period | null
+): boolean {
   if (filter.type === 'all') return true;
+
+  if (filter.type === 'custom_period' && period) {
+    if (dateStr < period.startDate) return false;
+    if (period.endDate && dateStr > period.endDate) return false;
+    return true;
+  }
 
   const parts = dateStr.split('-');
   const expYear = parseInt(parts[0] ?? '0', 10);
@@ -23,6 +33,23 @@ export function isWithinPeriod(dateStr: string, filter: PeriodFilterState): bool
   }
 
   return true;
+}
+
+export function isExpenseMatchingFilter(
+  expense: Expense,
+  filter: PeriodFilterState,
+  period?: Period | null
+): boolean {
+  if (filter.type === 'all') return true;
+
+  if (filter.type === 'custom_period' && period) {
+    if (expense.periodId && expense.periodId === period.id) return true;
+    if (expense.date < period.startDate) return false;
+    if (period.endDate && expense.date > period.endDate) return false;
+    return true;
+  }
+
+  return isWithinPeriod(expense.date, filter, period);
 }
 
 export interface ExpenseGroup {

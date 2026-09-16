@@ -104,7 +104,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
       return { error: null };
-    } catch (err) {
+    } catch (err: unknown) {
       set({ isLoading: false });
       const rawMsg = err instanceof Error ? err.message : String(err);
       return { error: new Error(translateAuthError(rawMsg)) };
@@ -131,7 +131,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
       return { error: null };
-    } catch (err) {
+    } catch (err: unknown) {
       set({ isLoading: false });
       const rawMsg = err instanceof Error ? err.message : String(err);
       return { error: new Error(translateAuthError(rawMsg)) };

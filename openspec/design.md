@@ -479,13 +479,17 @@ export function calculateMetrics(
 
 ## 6. 📤 Especificación de Exportación (`src/utils/export.ts`)
 
+El módulo de exportación soporta dos canales de rendición:
 El módulo de exportación soporta dos canales de rendición (WhatsApp y archivo CSV) con dos modalidades de visualización seleccionables por el usuario:
 - **Modo Detallado (Estándar)**: Distingue claramente entre gastos reales efectivamente realizados y compras delayeadas/ahorradas, con sus estados de transferencia.
 - **Modo Unificado (para rendir a padres)**: Presenta todos los movimientos como gastos comunes y calcula el monto presupuestario total a justificar/reponer, sin distinguir compras postergadas ni tags de transferencia.
 
+### 6.1 Formato WhatsApp (Texto Plano con Markdown Nativo)
+El texto generado no requiere edición manual y se estructura así:
 ---
 
 ### 6.1 Formato WhatsApp (Texto Plano con Markdown)
+Genera el desglose organizado con asteriscos para negritas compatibles con WhatsApp:
 
 #### Opción A: Modo Detallado
 ```text
@@ -531,8 +535,21 @@ Generado con DelaySpend 🚀
 ---
 
 ### 6.2 Formato CSV para Hojas de Cálculo (Excel / Google Sheets)
+- **Codificación**: UTF-8 con BOM (`\uFEFF`) obligatorio para que Microsoft Excel en Windows abra las tildes y caracteres en español sin romperse.
+- **Delimitador**: Coma (`,`) o punto y coma (`;`). Se provee con escape de comillas según estándar RFC 4180.
+- **Columnas**:
+  1. `Fecha` (`YYYY-MM-DD`)
+  2. `Tipo` (`Gasto Real` o `Compra Delayeada`)
+  3. `Monto` (`0.00`)
+  4. `Categoría` (Nombre en español)
+  5. `Concepto / Detalle`
+  6. `Estado de Transferencia` (`Transferido`, `Pendiente de transferir`, `No aplica`)
+  7. `Fecha de Transferencia` (si aplica)
+### 6.2 Formato CSV (Excel / Google Sheets)
+- **Codificación**: UTF-8 con BOM (`\uFEFF`) obligatorio para evitar caracteres rotos en Windows.
 - **Codificación**: UTF-8 con BOM (`\uFEFF`) obligatorio para evitar caracteres rotos en Microsoft Excel para Windows.
 - **Escape RFC 4180**: Delimitado por comas con comillas de escape para descripciones con signos de puntuación.
+- **Columnas**: `Fecha`, `Tipo`, `Monto`, `Categoría`, `Concepto / Detalle`, `Estado de Transferencia`, `Fecha de Transferencia`.
 - **Columnas Modo Detallado**: `Fecha`, `Tipo`, `Monto`, `Categoría`, `Concepto / Detalle`, `Estado de Transferencia`, `Fecha de Transferencia`.
 - **Columnas Modo Unificado**: `Fecha`, `Monto`, `Categoría`, `Concepto / Detalle`.
 
@@ -577,4 +594,43 @@ create trigger on_auth_user_created_auto_confirm
 ```
 
 ### 8.3 Suscripciones WebSocket en Tiempo Real
-Al vincular una cuenta, `useSyncStore` crea un canal dinámico `user_expenses_${userId}` escuchando eventos `postgres_changes` sobre `public.expenses`. Cualquier inserción o modificación en un dispositivo secundario se refleja en milisegundos en la UI local.
+Al vincular una cuenta, `useSyncStore` crea un canal dinámico `user_expenses_${userId}` escuchando eventos `postgres_changes` sobre `public.expenses` y `public.periods`. Cualquier inserción o modificación en un dispositivo secundario se refleja en milisegundos en la UI local.
+
+---
+
+## 9. 🔄 Gestión de Ciclos, Cortes de Período y Asignación de Ingresos (v1.3.0)
+
+### 9.1 Concepto de "Reinicio de Contadores" sin Borrado
+Para permitir un seguimiento por quincenas, meses o recargas de dinero (por ejemplo, plata enviada por los padres), DelaySpend implementa **Cortes de Período**:
+1. **No se borra ningún dato**: Al apretar el botón *"Nuevo período / Reiniciar contadores"*, el ciclo vigente se cierra (fijando su `endDate`) y se crea un nuevo ciclo abierto (`endDate: null`) con fecha de inicio elegida por el usuario.
+2. **Asignación de Ingreso (`initialIncome`)**: Al crear o editar un período, el usuario puede especificar un monto de dinero ingresado (ej. `$50.000`).
+3. **Métricas de Balance**:
+   - `initialIncome`: Fondo asignado al ciclo.
+   - `totalReal`: Gastos efectivos que consumieron dicho fondo.
+   - `totalDelayed`: Compras no realizadas (ahorro protegido).
+   - `remainingBalance = initialIncome - totalReal`: Plata que todavía queda en la cuenta.
+   - `freeBalance = initialIncome - totalReal - pendingTransfer`: Saldo libre tras separar lo que debe ir a la caja de ahorro.
+4. **Corte Deshacible (Undo Cutoff)**: Si el usuario inició un período por equivocación, el botón *"Deshacer corte"* elimina el período recién abierto y reabre el período inmediatamente anterior, unificando todos los movimientos sin pérdida de información.
+5. **Períodos Editables en Todo Momento**: Los períodos pasados y presentes pueden modificarse (fechas, nombre, ingreso asignado) y se pueden registrar o editar gastos retroactivos dentro de sus fechas recalculándose las métricas en tiempo real.
+
+### 9.2 Esquema Relacional de Períodos (`public.periods`)
+```sql
+create table if not exists public.periods (
+  id uuid primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  name text not null,
+  start_date date not null,
+  end_date date,
+  initial_income numeric(12, 2) not null default 0 check (initial_income >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+alter table public.periods enable row level security;
+
+create policy "Users can manage their own periods"
+  on public.periods for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```

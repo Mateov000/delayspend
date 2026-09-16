@@ -8,16 +8,19 @@ import { FloatingActionButton } from './components/form/FloatingActionButton';
 import { AddExpenseSheet } from './components/form/AddExpenseSheet';
 import { ExportPanel } from './components/export/ExportPanel';
 import { AuthModal } from './components/auth/AuthModal';
+import { NewPeriodModal } from './components/period/NewPeriodModal';
+import { EditPeriodModal } from './components/period/EditPeriodModal';
 import { ConfirmDialog } from './components/ui/ConfirmDialog';
 import { Toaster } from './components/ui/Toaster';
 import { useExpenseStore } from './store/useExpenseStore';
 import { useFilterStore } from './store/useFilterStore';
+import { usePeriodStore } from './store/usePeriodStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useSyncStore } from './store/useSyncStore';
 import { useToastStore } from './store/useToastStore';
 import { calculateMetrics } from './utils/metrics';
-import { isWithinPeriod } from './utils/date';
-import { Expense } from './store/types';
+import { isExpenseMatchingFilter } from './utils/date';
+import { Expense, Period } from './store/types';
 import { STRINGS } from './constants/strings';
 
 export default function App() {
@@ -28,7 +31,14 @@ export default function App() {
     toggleTransferred,
   } = useExpenseStore();
 
-  const { activeFilter } = useFilterStore();
+  const { activeFilter, setFilterType } = useFilterStore();
+  const {
+    setActivePeriodId,
+    getActivePeriod,
+    undoLastCutoff,
+    deletePeriod,
+  } = usePeriodStore();
+
   const { user, initialize: initAuth } = useAuthStore();
   const { initializeSync } = useSyncStore();
   const { showToast } = useToastStore();
@@ -50,19 +60,28 @@ export default function App() {
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isNewPeriodOpen, setIsNewPeriodOpen] = useState(false);
+  const [isEditPeriodOpen, setIsEditPeriodOpen] = useState(false);
+  const [isConfirmUndoCutoffOpen, setIsConfirmUndoCutoffOpen] = useState(false);
+  const [deletingPeriodId, setDeletingPeriodId] = useState<string | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
   // Estados para diálogos de confirmación accesibles (sin window.confirm)
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isConfirmTransferOpen, setIsConfirmTransferOpen] = useState(false);
 
+  // Período activo actualmente seleccionado
+  const activePeriod = getActivePeriod();
+
   // Filtrado de gastos para el período activo
-  const filteredExpenses = expenses.filter((e) => isWithinPeriod(e.date, activeFilter));
+  const filteredExpenses = expenses.filter((e) =>
+    isExpenseMatchingFilter(e, activeFilter, activePeriod)
+  );
 
   // Cálculo reactivo de métricas sobre el período seleccionado
-  const metrics = calculateMetrics(expenses, activeFilter);
+  const metrics = calculateMetrics(expenses, activeFilter, activePeriod);
 
-  // Manejo de altas y edición
+  // Manejo de altas y edición de gastos
   const handleOpenAdd = () => {
     setEditingExpense(null);
     setIsAddSheetOpen(true);
@@ -78,7 +97,7 @@ export default function App() {
     setEditingExpense(null);
   };
 
-  // Manejo de eliminación con ConfirmDialog
+  // Manejo de eliminación de gasto con ConfirmDialog
   const handleDeleteRequest = (id: string) => {
     setDeletingId(id);
   };
@@ -108,6 +127,31 @@ export default function App() {
     showToast(STRINGS.TOAST_TRANSFER_TOGGLED, 'info');
   };
 
+  // Manejo de períodos
+  const handlePeriodCreated = (newPeriod: Period) => {
+    setActivePeriodId(newPeriod.id);
+    setFilterType('custom_period');
+  };
+
+  const handleConfirmUndoCutoff = () => {
+    const res = undoLastCutoff();
+    if (res.success) {
+      showToast(STRINGS.TOAST_PERIOD_UNDO_SUCCESS, 'success');
+    }
+    setIsConfirmUndoCutoffOpen(false);
+  };
+
+  const handleConfirmDeletePeriod = () => {
+    if (deletingPeriodId) {
+      deletePeriod(deletingPeriodId);
+      showToast('Período eliminado.', 'info');
+      setDeletingPeriodId(null);
+    }
+  };
+
+  // Fecha predeterminada si se agrega un gasto dentro de un período histórico cerrado
+  const defaultExpenseDate = activePeriod?.endDate ?? undefined;
+
   return (
     <Layout>
       <Header
@@ -116,8 +160,12 @@ export default function App() {
       />
 
       <main className="flex-1 px-4 py-4 flex flex-col">
-        {/* Selector de Períodos: Este mes / Mes anterior / Todo */}
-        <PeriodFilter />
+        {/* Selector de Períodos: Ciclos abiertos / cerrados / históricos */}
+        <PeriodFilter
+          onOpenNewPeriod={() => setIsNewPeriodOpen(true)}
+          onOpenEditPeriod={() => setIsEditPeriodOpen(true)}
+          onUndoCutoff={() => setIsConfirmUndoCutoffOpen(true)}
+        />
 
         {/* Bloque Superior de Métricas (incluye Métrica Estrella y botón de transferencia) */}
         <SummaryCards
@@ -128,6 +176,7 @@ export default function App() {
         {/* Historial Agrupado por Fecha */}
         <ExpenseHistory
           expenses={filteredExpenses}
+          period={activePeriod}
           onEdit={handleEdit}
           onDelete={handleDeleteRequest}
           onToggleTransfer={handleToggleTransfer}
@@ -142,6 +191,7 @@ export default function App() {
         isOpen={isAddSheetOpen}
         onClose={handleCloseSheet}
         editingExpense={editingExpense}
+        defaultDate={defaultExpenseDate}
       />
 
       {/* Panel de Rendición y Exportación para WhatsApp y CSV */}
@@ -151,6 +201,7 @@ export default function App() {
         expenses={expenses}
         filter={activeFilter}
         metrics={metrics}
+        period={activePeriod}
       />
 
       {/* Modal de Autenticación y Sincronización */}
@@ -159,7 +210,22 @@ export default function App() {
         onClose={() => setIsAuthOpen(false)}
       />
 
-      {/* Modal accesible para confirmar eliminación (Cero window.confirm) */}
+      {/* Modal de Nuevo Período / Reinicio de Contadores */}
+      <NewPeriodModal
+        isOpen={isNewPeriodOpen}
+        onClose={() => setIsNewPeriodOpen(false)}
+        onCreated={handlePeriodCreated}
+      />
+
+      {/* Modal de Edición de Período Activo */}
+      <EditPeriodModal
+        isOpen={isEditPeriodOpen}
+        onClose={() => setIsEditPeriodOpen(false)}
+        period={activePeriod}
+        onDeleteRequest={(id) => setDeletingPeriodId(id)}
+      />
+
+      {/* Modal accesible para confirmar eliminación de gasto */}
       <ConfirmDialog
         isOpen={Boolean(deletingId)}
         title={STRINGS.CONFIRM_DELETE_TITLE}
@@ -180,6 +246,29 @@ export default function App() {
         cancelLabel={STRINGS.CONFIRM_TRANSFER_ALL_CANCEL}
         onConfirm={handleConfirmTransfer}
         onCancel={() => setIsConfirmTransferOpen(false)}
+      />
+
+      {/* Modal accesible para confirmar deshacer corte de período */}
+      <ConfirmDialog
+        isOpen={isConfirmUndoCutoffOpen}
+        title={STRINGS.CONFIRM_UNDO_CUTOFF_TITLE}
+        message={STRINGS.CONFIRM_UNDO_CUTOFF_MSG}
+        confirmLabel={STRINGS.CONFIRM_UNDO_CUTOFF_BUTTON}
+        cancelLabel={STRINGS.CONFIRM_UNDO_CUTOFF_CANCEL}
+        onConfirm={handleConfirmUndoCutoff}
+        onCancel={() => setIsConfirmUndoCutoffOpen(false)}
+      />
+
+      {/* Modal accesible para confirmar eliminación de período */}
+      <ConfirmDialog
+        isOpen={Boolean(deletingPeriodId)}
+        title="¿Eliminar este período?"
+        message="Se eliminará este ciclo. Los gastos que contenía seguirán existiendo en tu historial general."
+        confirmLabel="Sí, eliminar período"
+        cancelLabel="Cancelar"
+        isDestructive
+        onConfirm={handleConfirmDeletePeriod}
+        onCancel={() => setDeletingPeriodId(null)}
       />
 
       {/* Contenedor de notificaciones Toast */}
