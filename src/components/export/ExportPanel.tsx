@@ -21,6 +21,12 @@ const STORAGE_KEY = 'delayspend_parent_export_config_v1';
 const DEFAULT_CONFIG: ParentExportConfig = {
   showCategory: true,
   showNature: true,
+  showNatureTags: {
+    daily: true,
+    fixed: true,
+    eventual: true,
+    house: true,
+  },
   includedNatures: {
     daily: true,
     fixed: true,
@@ -38,6 +44,12 @@ function loadStoredConfig(): ParentExportConfig {
     return {
       showCategory: typeof parsed.showCategory === 'boolean' ? parsed.showCategory : true,
       showNature: typeof parsed.showNature === 'boolean' ? parsed.showNature : true,
+      showNatureTags: {
+        daily: parsed.showNatureTags?.daily ?? true,
+        fixed: parsed.showNatureTags?.fixed ?? true,
+        eventual: parsed.showNatureTags?.eventual ?? true,
+        house: parsed.showNatureTags?.house ?? true,
+      },
       includedNatures: {
         daily: parsed.includedNatures?.daily ?? true,
         fixed: parsed.includedNatures?.fixed ?? true,
@@ -80,12 +92,22 @@ export function ExportPanel({
     setConfig((prev) => ({ ...prev, ...patch }));
   };
 
-  const toggleNature = (nature: ExpenseNature) => {
+  const toggleIncludedNature = (nature: ExpenseNature) => {
     setConfig((prev) => {
       const current = prev.includedNatures ?? DEFAULT_CONFIG.includedNatures!;
       return {
         ...prev,
         includedNatures: { ...current, [nature]: !current[nature] },
+      };
+    });
+  };
+
+  const toggleNatureTag = (nature: ExpenseNature) => {
+    setConfig((prev) => {
+      const current = prev.showNatureTags ?? DEFAULT_CONFIG.showNatureTags!;
+      return {
+        ...prev,
+        showNatureTags: { ...current, [nature]: !current[nature] },
       };
     });
   };
@@ -201,42 +223,95 @@ export function ExportPanel({
                 </div>
               </label>
 
-              {/* 2. Casilla: Mostrar u Ocultar Naturaleza */}
-              <label className="flex items-center gap-2.5 cursor-pointer select-none bg-white p-2.5 rounded-xl border border-indigo-100 hover:border-indigo-200 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={config.showNature ?? true}
-                  onChange={(e) => updateConfig({ showNature: e.target.checked })}
-                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-slate-800 text-xs">
-                    Mostrar etiqueta de naturaleza
+              {/* 2. Recuadro: Mostrar u Ocultar Naturaleza y Selección de Etiquetas */}
+              <div className="flex flex-col gap-2.5 bg-white p-2.5 rounded-xl border border-indigo-100">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={config.showNature ?? true}
+                    onChange={(e) => updateConfig({ showNature: e.target.checked })}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                  />
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-slate-800 text-xs">
+                      Mostrar etiqueta de naturaleza
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Indica si el gasto es para la casa, fijo, eventual o cotidiano.
+                    </span>
+                  </div>
+                </label>
+
+                {/* Sub-opciones: De qué naturaleza mostrar etiquetas (dentro del mismo recuadro) */}
+                <div
+                  className={`flex flex-col gap-1.5 pl-6 pt-2 border-t border-slate-100 transition-opacity ${
+                    !(config.showNature ?? true) ? 'opacity-40 pointer-events-none' : ''
+                  }`}
+                >
+                  <span className="font-medium text-slate-700 text-[11px]">
+                    Etiquetas de naturaleza a mostrar:
                   </span>
                   <span className="text-[10px] text-slate-400">
-                    Indica si el gasto es para la casa, fijo, eventual o cotidiano.
+                    Elegí de qué naturalezas mostrar etiqueta. Aunque no se muestre la etiqueta, el gasto aparece igual en el reporte.
                   </span>
-                </div>
-              </label>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={config.showNatureTags?.daily ?? true}
+                        onChange={() => toggleNatureTag('daily')}
+                        className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                      />
+                      <span>🛒 Cotidianos</span>
+                    </label>
 
-              {/* 3. Rótulos de naturaleza visibles */}
-              <div
-                className={`flex flex-col gap-1.5 bg-white p-2.5 rounded-xl border border-indigo-100 transition-opacity ${
-                  !(config.showNature ?? true) ? 'opacity-50 pointer-events-none' : ''
-                }`}
-              >
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={config.showNatureTags?.fixed ?? true}
+                        onChange={() => toggleNatureTag('fixed')}
+                        className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                      />
+                      <span>🔄 Fijos / Recurrentes</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={config.showNatureTags?.eventual ?? true}
+                        onChange={() => toggleNatureTag('eventual')}
+                        className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                      />
+                      <span>⚡ Eventuales</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={config.showNatureTags?.house ?? true}
+                        onChange={() => toggleNatureTag('house')}
+                        className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                      />
+                      <span>🏠 Para la casa</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Naturalezas a incluir en el reporte */}
+              <div className="flex flex-col gap-1.5 bg-white p-2.5 rounded-xl border border-indigo-100">
                 <span className="font-semibold text-slate-800 text-xs">
-                  Rótulos de naturaleza visibles:
+                  Naturalezas a incluir en el reporte:
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  Elegí para cuáles querés que aparezca el rótulo al lado del gasto. Todos los gastos seguirán apareciendo en el reporte.
+                  Elegí qué gastos incluir según su naturaleza. Si desmarcás una, esos gastos no figurarán en el reporte ni en el total a rendir.
                 </span>
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
                     <input
                       type="checkbox"
                       checked={config.includedNatures?.daily ?? true}
-                      onChange={() => toggleNature('daily')}
+                      onChange={() => toggleIncludedNature('daily')}
                       className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                     />
                     <span>🛒 Cotidianos</span>
@@ -246,7 +321,7 @@ export function ExportPanel({
                     <input
                       type="checkbox"
                       checked={config.includedNatures?.fixed ?? true}
-                      onChange={() => toggleNature('fixed')}
+                      onChange={() => toggleIncludedNature('fixed')}
                       className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                     />
                     <span>🔄 Fijos / Recurrentes</span>
@@ -256,7 +331,7 @@ export function ExportPanel({
                     <input
                       type="checkbox"
                       checked={config.includedNatures?.eventual ?? true}
-                      onChange={() => toggleNature('eventual')}
+                      onChange={() => toggleIncludedNature('eventual')}
                       className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                     />
                     <span>⚡ Eventuales</span>
@@ -266,7 +341,7 @@ export function ExportPanel({
                     <input
                       type="checkbox"
                       checked={config.includedNatures?.house ?? true}
-                      onChange={() => toggleNature('house')}
+                      onChange={() => toggleIncludedNature('house')}
                       className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                     />
                     <span>🏠 Para la casa</span>

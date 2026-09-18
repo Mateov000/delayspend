@@ -256,11 +256,13 @@ Al lado del interruptor de rendición unificada hay un botón de tuerquita ⚙�
    - Si está marcada: incluye la categoría entre corchetes (ej: `• 15/09: Almuerzo - $6.500 [Comida]`).
    - Si una categoría está enmascarada por privacidad, se muestra como `[Otros Gastos]`.
    - Si está desmarcada: muestra solo fecha, concepto y monto (ej: `• 15/09: Almuerzo - $6.500`).
-2. **Casilla "Mostrar etiqueta de naturaleza":**
-   - Agrega o quita las marcas: `[🏠 Para la casa]`, `[🔄 Fijo]`, `[⚡ Eventual]`, `[🛒 Cotidiano]`.
-3. **Casillas individuales de rótulos de naturalezas a mostrar:**
-   - Podés elegir para qué naturalezas querés que figure el rótulo al lado del gasto: Cotidianos, Fijos, Eventuales o Para la casa.
-   - **Nota contable:** Todos los gastos del período se incluyen siempre en el reporte para que la rendición cuadre con exactitud matemática; las casillas solo determinan si el rótulo descriptivo aparece o se oculta al lado de cada ítem.
+2. **Recuadro "Mostrar etiqueta de naturaleza":**
+   - **Interruptor principal:** Habilita o deshabilita los rótulos de naturaleza en el reporte.
+   - **Etiquetas de naturaleza a mostrar (dentro del mismo recuadro):** Podés elegir para qué naturalezas querés que figure el rótulo al lado del gasto: 🛒 Cotidianos, 🔄 Fijos, ⚡ Eventuales o 🏠 Para la casa.
+   - **Importante:** Aunque desmarques una etiqueta, el gasto **aparece igual en el reporte** si su naturaleza está incluida.
+3. **Recuadro "Naturalezas a incluir en el reporte":**
+   - Te permite elegir qué gastos querés incluir o excluir según su naturaleza.
+   - Si desmarcás una naturaleza acá (por ejemplo *Fijos*), esos gastos **no se incluirán en el reporte ni sumarán en el total a rendir**.
 4. **Modo de Resumen Financiero al final:**
    - **Detalle completo:** Muestra ingreso asignado, total a rendir, saldo disponible remanente y total destinado a la casa.
    - **Solo total a rendir:** Termina simplemente diciendo:

@@ -32,6 +32,7 @@ function getPeriodLabel(filter: PeriodFilterState, period?: Period | null): stri
 export interface ParentExportConfig {
   showCategory?: boolean;
   showNature?: boolean;
+  showNatureTags?: Record<ExpenseNature, boolean>;
   includedNatures?: Record<ExpenseNature, boolean>;
   summaryMode?: 'full' | 'total_only';
 }
@@ -52,7 +53,12 @@ export function generateWhatsAppReport(
   const period = options?.period ?? null;
   const filtered = expenses
     .filter((e) => !e.linkedExpenseId)
-    .filter((e) => isExpenseMatchingFilter(e, filter, period));
+    .filter((e) => isExpenseMatchingFilter(e, filter, period))
+    .filter((e) => {
+      if (!options?.includedNatures) return true;
+      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
+      return options.includedNatures[nature] ?? true;
+    });
 
   const lines: string[] = [];
 
@@ -86,10 +92,10 @@ export function generateWhatsAppReport(
         let natureTag = '';
         if (showNat) {
           const nat = exp.nature ?? (exp.isRecurring ? 'fixed' : 'daily');
-          const isNatureIncluded = options?.includedNatures
-            ? (options.includedNatures[nat] ?? true)
+          const isTagShown = options?.showNatureTags
+            ? (options.showNatureTags[nat] ?? true)
             : true;
-          if (isNatureIncluded) {
+          if (isTagShown) {
             if (nat === 'house') natureTag = ' 🏠 [Para la casa]';
             else if (nat === 'fixed') natureTag = ' 🔄 [Fijo]';
             else if (nat === 'eventual') natureTag = ' ⚡ [Eventual]';
@@ -214,7 +220,12 @@ export function downloadExpensesCSV(
   const period = options?.period ?? null;
   const filtered = expenses
     .filter((e) => !e.linkedExpenseId)
-    .filter((e) => isExpenseMatchingFilter(e, filter, period));
+    .filter((e) => isExpenseMatchingFilter(e, filter, period))
+    .filter((e) => {
+      if (!options?.includedNatures) return true;
+      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
+      return options.includedNatures[nature] ?? true;
+    });
 
   const escapeCSV = (field: string | number) => {
     const str = String(field);

@@ -174,8 +174,9 @@ export interface HistoricalSavings {
 
 export interface ParentExportConfig {
   showCategory?: boolean;       // Incluir o no la categoría en cada ítem
-  showNature?: boolean;         // Incluir o no rótulos de naturaleza en los gastos
-  includedNatures?: Record<ExpenseNature, boolean>; // Qué rótulos de naturaleza mostrar ([🛒 Cotidiano], [🔄 Fijo], etc.). Todos los gastos se exportan siempre.
+  showNature?: boolean;         // Interruptor maestro: mostrar u ocultar etiquetas de naturaleza
+  showNatureTags?: Record<ExpenseNature, boolean>; // De qué naturalezas mostrar etiqueta. Aunque se desmarque, el gasto aparece igual.
+  includedNatures?: Record<ExpenseNature, boolean>; // Qué naturalezas de gasto se incluyen en el reporte. Si se desmarca, se excluye el gasto y su monto.
   summaryMode?: 'full' | 'total_only'; // Detalle completo vs solo total a rendir
 }
 ```
@@ -891,8 +892,11 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 3. **Aislamiento de Compras de la Casa:** Si el gasto tiene `nature === 'house'`, se le anexa el tag `[🏠 Para la casa]` y al pie del reporte se emite una línea con el total destinado a la familia.
 4. **Configuración Dinámica (Tuerquita ⚙️):**
    - Switch de categoría: `showCategory` (booleano).
-   - Switch de naturaleza: `showNature` (booleano).
-   - Rótulos de naturalezas visibles: `includedNatures` (diccionario por `ExpenseNature`). Importante: las casillas determinan si se muestra el rótulo al lado de cada gasto; todos los movimientos del período continúan figurando en el reporte para garantizar consistencia contable.
+   - Recuadro "Mostrar etiqueta de naturaleza":
+     - Switch maestro: `showNature` (booleano).
+     - Sub-opciones de etiquetas: `showNatureTags` (diccionario por `ExpenseNature`). Elige de qué naturalezas mostrar el rótulo (`[🛒 Cotidiano]`, `[🔄 Fijo]`, `[⚡ Eventual]`, `[🏠 Para la casa]`). Si una etiqueta se desmarca, el gasto aparece igual en el reporte.
+   - Recuadro "Naturalezas a incluir en el reporte":
+     - Filtro de naturalezas: `includedNatures` (diccionario por `ExpenseNature`). Elige qué naturalezas de gasto se incluyen en la rendición; si se desmarca una, esos gastos quedan excluidos del reporte y de la suma total.
    - Modo de resumen: `summaryMode` (`'full'` o `'total_only'`).
    - Persistencia: Se guarda en `localStorage` bajo `delayspend_parent_export_config_v1` para que las preferencias sean permanentes.
 
