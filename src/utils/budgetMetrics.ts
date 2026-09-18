@@ -24,6 +24,20 @@ export interface CategoryWeeklySpending {
   dailyAllowance: number;
 }
 
+export interface SubcategorySpending {
+  categoryId: CategoryId;
+  subcategory: string;
+  spent: number;
+  budget: number;
+  hasBudget: boolean;
+  percentage: number;
+  isOver: boolean;
+  isWarning: boolean;
+  remaining: number;
+  daysRemaining?: number;
+  dailyAllowance?: number;
+}
+
 export interface WeeklySpendingMetrics {
   spentThisWeek: number;
   weeklyLimit: number | null;
@@ -80,7 +94,7 @@ export interface PeriodGoalMetrics {
 
 /**
  * Calcula cuánto se gastó por categoría vs el presupuesto asignado del ciclo/mes.
- * Solo gastos de tipo 'real', no incluye delayed.
+ * Solo gastos de tipo 'real', excluye ficticios y compras postergadas.
  */
 export function calculateCategorySpending(
   expenses: Expense[],
@@ -116,15 +130,63 @@ export function calculateCategorySpending(
 }
 
 /**
- * Devuelve el rango de fecha de la semana actual (Lunes a Domingo) en formato YYYY-MM-DD.
- */
-/**
  * Calcula cuánto se gastó en una categoría específica en la lista de gastos dada.
  */
 export function getSpentForCategory(expenses: Expense[], categoryId: CategoryId): number {
   return expenses
     .filter((e) => e.type === 'real' && !e.isFictitious && e.categoryId === categoryId)
     .reduce((sum, e) => sum + e.amount, 0);
+}
+
+/**
+ * Calcula cuánto se gastó en una subcategoría específica en la lista de gastos dada.
+ */
+export function getSpentForSubcategory(
+  expenses: Expense[],
+  categoryId: CategoryId,
+  subcategory: string
+): number {
+  const cleanSub = subcategory.trim().toLowerCase();
+  return expenses
+    .filter(
+      (e) =>
+        e.type === 'real' &&
+        !e.isFictitious &&
+        e.categoryId === categoryId &&
+        e.subcategory?.trim().toLowerCase() === cleanSub
+    )
+    .reduce((sum, e) => sum + e.amount, 0);
+}
+
+/**
+ * Calcula el progreso de gastos de subcategorías con meta para un período/ciclo.
+ */
+export function calculateSubcategorySpending(
+  expenses: Expense[],
+  subcategoryBudgets: Array<{ categoryId: CategoryId; subcategory: string; amount: number }>
+): SubcategorySpending[] {
+  return subcategoryBudgets
+    .filter((item) => item.amount > 0)
+    .map(({ categoryId, subcategory, amount }) => {
+      const spent = getSpentForSubcategory(expenses, categoryId, subcategory);
+      const remaining = amount - spent;
+      const percentage = amount > 0 ? (spent / amount) * 100 : 0;
+      const isOver = spent > amount;
+      const isWarning = percentage >= 80 && !isOver;
+
+      return {
+        categoryId,
+        subcategory,
+        spent,
+        budget: amount,
+        hasBudget: true,
+        percentage,
+        isOver,
+        isWarning,
+        remaining,
+      };
+    })
+    .sort((a, b) => b.percentage - a.percentage);
 }
 
 /**
@@ -283,6 +345,55 @@ export function calculateCategoryPeriodicSpending(
 }
 
 /**
+ * Calcula el progreso de gastos de subcategorías en una ventana de fechas específica.
+ */
+export function calculateSubcategoryPeriodicSpending(
+  expenses: Expense[],
+  subcategoryBudgets: Array<{ categoryId: CategoryId; subcategory: string; amount: number }>,
+  startStr: string,
+  endStr: string,
+  daysRemaining: number
+): SubcategorySpending[] {
+  return subcategoryBudgets
+    .filter((item) => item.amount > 0)
+    .map(({ categoryId, subcategory, amount }) => {
+      const cleanSub = subcategory.trim().toLowerCase();
+      const spent = expenses
+        .filter(
+          (e) =>
+            e.type === 'real' &&
+            !e.isFictitious &&
+            e.categoryId === categoryId &&
+            e.subcategory?.trim().toLowerCase() === cleanSub &&
+            e.date >= startStr &&
+            e.date <= endStr
+        )
+        .reduce((sum, e) => sum + e.amount, 0);
+
+      const remaining = amount - spent;
+      const percentage = amount > 0 ? (spent / amount) * 100 : 0;
+      const isOver = spent > amount;
+      const isWarning = percentage >= 80 && !isOver;
+      const dailyAllowance = remaining > 0 ? remaining / Math.max(1, daysRemaining) : 0;
+
+      return {
+        categoryId,
+        subcategory,
+        spent,
+        budget: amount,
+        hasBudget: true,
+        percentage,
+        isOver,
+        isWarning,
+        remaining,
+        daysRemaining,
+        dailyAllowance,
+      };
+    })
+    .sort((a, b) => b.percentage - a.percentage);
+}
+
+/**
  * Calcula el progreso del gasto real en la semana en curso (Lunes a Domingo).
  */
 export function calculateWeeklySpending(
@@ -300,8 +411,7 @@ export function calculateWeeklySpending(
     .filter((e) => {
       if (e.type !== 'real' || e.isFictitious || e.date < start || e.date > end) return false;
       const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
-      // La meta semanal es para gasto corriente: excluye fijos, eventuales y casa
-      // La meta de ritmo es para gasto corriente: excluye fijos, eventuales y casa
+      // La meta semanal de ritmo es para gasto corriente: excluye fijos, eventuales y casa
       return nature === 'daily';
     })
     .reduce((acc, e) => acc + e.amount, 0);
@@ -449,7 +559,6 @@ export function calculatePeriodGoalProgress(
     const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
     if (e.type === 'real') {
       spent += e.amount;
-      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
       if (nature === 'fixed') {
         spentFixed += e.amount;
       } else if (nature === 'eventual') {

@@ -8,6 +8,9 @@ import {
   calculatePeriodGoalProgress,
   calculateCategorySpending,
   calculateCategoryPeriodicSpending,
+  calculateSubcategorySpending,
+  calculateSubcategoryPeriodicSpending,
+  SubcategorySpending,
   getCurrentWeekRange,
   getCurrentMonthRange,
   getCustomDaysRange,
@@ -46,6 +49,7 @@ export function BudgetGoalsCard({
     customGoalDays,
     setGoalPeriodType,
     budgets,
+    subcategoryBudgets,
   } = useBudgetStore();
 
   const { customCategories } = useCategoryStore();
@@ -74,6 +78,20 @@ export function BudgetGoalsCard({
       .sort((a, b) => b.percentage - a.percentage);
   }, [expenses, cycleBudgetsMap]);
 
+  const cycleSubcategoryBudgets = useMemo(() => {
+    return (subcategoryBudgets || [])
+      .filter((s) => s.amount > 0)
+      .map((s) => ({
+        categoryId: s.categoryId,
+        subcategory: s.subcategory,
+        amount: s.amount,
+      }));
+  }, [subcategoryBudgets]);
+
+  const cycleSubcategoryProgress = useMemo(() => {
+    return calculateSubcategorySpending(expenses, cycleSubcategoryBudgets);
+  }, [expenses, cycleSubcategoryBudgets]);
+
   // 2. Métricas Por Semana
   const weeklyMetrics = useMemo(
     () => calculateWeeklySpending(expenses, weeklyLimit),
@@ -98,6 +116,26 @@ export function BudgetGoalsCard({
       weeklyMetrics.daysRemaining
     );
   }, [expenses, weeklyBudgetsMap, weekRange, weeklyMetrics.daysRemaining]);
+
+  const weeklySubcategoryBudgets = useMemo(() => {
+    return (subcategoryBudgets || [])
+      .filter((s) => (s.weeklyAmount ?? 0) > 0)
+      .map((s) => ({
+        categoryId: s.categoryId,
+        subcategory: s.subcategory,
+        amount: s.weeklyAmount!,
+      }));
+  }, [subcategoryBudgets]);
+
+  const weeklySubcategoryProgress = useMemo(() => {
+    return calculateSubcategoryPeriodicSpending(
+      expenses,
+      weeklySubcategoryBudgets,
+      weekRange.start,
+      weekRange.end,
+      weeklyMetrics.daysRemaining
+    );
+  }, [expenses, weeklySubcategoryBudgets, weekRange, weeklyMetrics.daysRemaining]);
 
   // 3. Métricas Por Mes
   const monthlyMetrics = useMemo(
@@ -124,6 +162,26 @@ export function BudgetGoalsCard({
     );
   }, [expenses, monthlyBudgetsMap, monthRange, monthlyMetrics.daysRemaining]);
 
+  const monthlySubcategoryBudgets = useMemo(() => {
+    return (subcategoryBudgets || [])
+      .filter((s) => (s.monthlyAmount ?? 0) > 0)
+      .map((s) => ({
+        categoryId: s.categoryId,
+        subcategory: s.subcategory,
+        amount: s.monthlyAmount!,
+      }));
+  }, [subcategoryBudgets]);
+
+  const monthlySubcategoryProgress = useMemo(() => {
+    return calculateSubcategoryPeriodicSpending(
+      expenses,
+      monthlySubcategoryBudgets,
+      monthRange.start,
+      monthRange.end,
+      monthlyMetrics.daysRemaining
+    );
+  }, [expenses, monthlySubcategoryBudgets, monthRange, monthlyMetrics.daysRemaining]);
+
   // 4. Métricas Personalizadas (N días)
   const customMetrics = useMemo(
     () => calculateCustomDaysSpending(expenses, customLimit, customGoalDays),
@@ -148,6 +206,26 @@ export function BudgetGoalsCard({
       1
     );
   }, [expenses, customBudgetsMap, customRange]);
+
+  const customSubcategoryBudgets = useMemo(() => {
+    return (subcategoryBudgets || [])
+      .filter((s) => (s.customAmount ?? 0) > 0)
+      .map((s) => ({
+        categoryId: s.categoryId,
+        subcategory: s.subcategory,
+        amount: s.customAmount!,
+      }));
+  }, [subcategoryBudgets]);
+
+  const customSubcategoryProgress = useMemo(() => {
+    return calculateSubcategoryPeriodicSpending(
+      expenses,
+      customSubcategoryBudgets,
+      customRange.start,
+      customRange.end,
+      1
+    );
+  }, [expenses, customSubcategoryBudgets, customRange]);
 
   const handleTabChange = (tab: BudgetPeriodType) => {
     setActiveTab(tab);
@@ -357,6 +435,15 @@ export function BudgetGoalsCard({
               allCategories={allCategories}
             />
           )}
+
+          {/* Metas por subcategoría del ciclo */}
+          {cycleSubcategoryProgress.length > 0 && (
+            <SubcategoryGoalsSection
+              title="Metas de Ciclo por Subcategoría"
+              items={cycleSubcategoryProgress}
+              allCategories={allCategories}
+            />
+          )}
         </>
       )}
 
@@ -458,6 +545,14 @@ export function BudgetGoalsCard({
               allCategories={allCategories}
             />
           )}
+
+          {monthlySubcategoryProgress.length > 0 && (
+            <SubcategoryGoalsSection
+              title="Metas Mensuales por Subcategoría"
+              items={monthlySubcategoryProgress}
+              allCategories={allCategories}
+            />
+          )}
         </>
       )}
 
@@ -549,6 +644,14 @@ export function BudgetGoalsCard({
             <CategoryGoalsSection
               title="Metas Semanales por Rubro"
               items={weeklyCategoryProgress}
+              allCategories={allCategories}
+            />
+          )}
+
+          {weeklySubcategoryProgress.length > 0 && (
+            <SubcategoryGoalsSection
+              title="Metas Semanales por Subcategoría"
+              items={weeklySubcategoryProgress}
               allCategories={allCategories}
             />
           )}
@@ -656,6 +759,14 @@ export function BudgetGoalsCard({
             <CategoryGoalsSection
               title={`Metas (${customGoalDays}d) por Rubro`}
               items={customCategoryProgress}
+              allCategories={allCategories}
+            />
+          )}
+
+          {customSubcategoryProgress.length > 0 && (
+            <SubcategoryGoalsSection
+              title={`Metas (${customGoalDays}d) por Subcategoría`}
+              items={customSubcategoryProgress}
               allCategories={allCategories}
             />
           )}
@@ -804,3 +915,110 @@ function CategoryGoalsSection({ title, items, allCategories }: CategoryGoalsSect
     </div>
   );
 }
+
+interface SubcategoryGoalsSectionProps {
+  title: string;
+  items: SubcategorySpending[];
+  allCategories: Array<{
+    id: CategoryId;
+    name: string;
+    icon: string;
+    badgeBg: string;
+    color: string;
+  }>;
+}
+
+function SubcategoryGoalsSection({
+  title,
+  items,
+  allCategories,
+}: SubcategoryGoalsSectionProps) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-xs flex flex-col gap-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+          <span>🎯</span>
+          <span>{title}</span>
+        </span>
+        <span className="text-[9px] font-semibold text-slate-400">
+          {items.length} meta{items.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {items.map((item) => {
+          const cat = allCategories.find((c) => c.id === item.categoryId);
+          const catName = cat ? cat.name : item.categoryId;
+          return (
+            <div
+              key={`${item.categoryId}:::${item.subcategory}`}
+              className="flex flex-col gap-1 bg-slate-50/60 p-2 rounded-xl border border-slate-100"
+            >
+              <div className="flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {cat && (
+                    <div
+                      className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 ${cat.badgeBg} ${cat.color}`}
+                    >
+                      <CategoryIcon name={cat.icon} className="w-2.5 h-2.5" />
+                    </div>
+                  )}
+                  <span className="font-semibold text-slate-800 truncate">
+                    {item.subcategory}
+                  </span>
+                  <span className="text-[10px] text-slate-400 shrink-0">
+                    ({catName})
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-[10px] shrink-0">
+                  <span className="font-bold text-slate-800">{formatCurrency(item.spent)}</span>
+                  <span className="text-slate-400">/ {formatCurrency(item.budget)}</span>
+                  <span
+                    className={`font-bold ml-0.5 ${
+                      item.isOver
+                        ? 'text-rose-600'
+                        : item.isWarning
+                        ? 'text-amber-600'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    ({item.percentage.toFixed(0)}%)
+                  </span>
+                </div>
+              </div>
+
+              <div className="w-full h-1.5 bg-slate-200/60 rounded-full overflow-hidden flex">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    item.isOver ? 'bg-rose-500' : item.isWarning ? 'bg-amber-500' : 'bg-indigo-500'
+                  }`}
+                  style={{ width: `${Math.min(100, item.percentage)}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[9px] text-slate-400 pt-0.5">
+                <span>
+                  {item.isOver ? (
+                    <strong className="text-rose-600">
+                      Excedido por {formatCurrency(Math.abs(item.remaining))}
+                    </strong>
+                  ) : (
+                    <span>
+                      Disponible: <strong className="text-slate-600">{formatCurrency(item.remaining)}</strong>
+                    </span>
+                  )}
+                </span>
+                {item.dailyAllowance !== undefined && item.dailyAllowance > 0 && (
+                  <span className="text-indigo-700 font-semibold">
+                    {formatCurrency(item.dailyAllowance)}/día
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+

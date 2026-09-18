@@ -67,17 +67,28 @@ export function AddExpenseSheet({
         installmentNumber: editingExpense.installmentNumber,
         installmentTotal: editingExpense.installmentTotal,
       }
-    : {
-        type: initialPreset?.type ?? 'real',
-        amount: initialPreset?.amount ?? 0,
-        description: initialPreset?.description ?? '',
-        categoryId: initialPreset?.categoryId ?? 'food',
-        date: initialPreset?.date ?? defaultDate ?? new Date().toISOString().split('T')[0]!,
-        periodId: initialPreset?.periodId ?? defaultPeriodId ?? null,
-        isFictitious: initialPreset?.isFictitious,
-        subcategory: initialPreset?.subcategory,
-        nature: initialPreset?.nature,
-      };
+    : initialPreset
+    ? {
+        type: initialPreset.type ?? 'real',
+        amount: initialPreset.amount ?? 0,
+        description: initialPreset.description ?? '',
+        categoryId: initialPreset.categoryId ?? 'food',
+        date: initialPreset.date ?? defaultDate ?? new Date().toISOString().split('T')[0]!,
+        periodId: initialPreset.periodId ?? defaultPeriodId ?? null,
+        isFictitious: initialPreset.isFictitious,
+        subcategory: initialPreset.subcategory,
+        nature: initialPreset.nature,
+      }
+    : defaultDate || defaultPeriodId
+    ? {
+        type: 'real',
+        amount: 0,
+        description: '',
+        categoryId: 'food',
+        date: defaultDate || new Date().toISOString().split('T')[0]!,
+        periodId: defaultPeriodId ?? null,
+      }
+    : undefined;
 
   const sheetTitle = editingExpense
     ? STRINGS.FORM_TITLE_EDIT

@@ -73,8 +73,8 @@ export function ExpenseListItem({
             ) : (
               <>
                 <span className="text-[11px] font-medium text-slate-400">
-                  {expense.categoryId === 'vices' && expense.subcategory
-                    ? `Vicios · ${expense.subcategory}`
+                  {expense.subcategory
+                    ? `${category.name} · ${expense.subcategory}`
                     : category.name}
                 </span>
                 <span className="text-slate-300">•</span>

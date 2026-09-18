@@ -14,8 +14,21 @@ export interface CategoryBudget {
   updatedAt: string;
 }
 
+export interface SubcategoryBudget {
+  id: string;
+  categoryId: CategoryId;
+  subcategory: string;
+  amount: number; // Presupuesto de ciclo (legacy / compatibilidad)
+  weeklyAmount?: number; // Meta semanal por subcategoría
+  monthlyAmount?: number; // Meta mensual por subcategoría
+  customAmount?: number; // Meta personalizada por subcategoría
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface BudgetState {
   budgets: CategoryBudget[];
+  subcategoryBudgets: SubcategoryBudget[];
   weeklyLimit: number | null;
   monthlyLimit: number | null;
   cycleLimit: number | null;
@@ -34,6 +47,28 @@ export interface BudgetState {
   getCategoryBudget: (categoryId: CategoryId, periodType: BudgetPeriodType) => number;
   removeCategoryBudget: (categoryId: CategoryId, periodType: BudgetPeriodType) => void;
 
+  // Presupuestos por subcategoría según periodicidad
+  setSubcategoryBudget: (
+    categoryId: CategoryId,
+    subcategory: string,
+    periodType: BudgetPeriodType,
+    amount: number
+  ) => void;
+  getSubcategoryBudget: (
+    categoryId: CategoryId,
+    subcategory: string,
+    periodType: BudgetPeriodType
+  ) => number;
+  removeSubcategoryBudget: (
+    categoryId: CategoryId,
+    subcategory: string,
+    periodType: BudgetPeriodType
+  ) => void;
+  getSubcategoryBudgetsForCategory: (
+    categoryId: CategoryId,
+    periodType: BudgetPeriodType
+  ) => Array<{ subcategory: string; amount: number }>;
+
   // Métodos legacy para compatibilidad retroactiva
   setBudget: (categoryId: CategoryId, amount: number) => void;
   removeBudget: (categoryId: CategoryId) => void;
@@ -48,6 +83,7 @@ export const useBudgetStore = create<BudgetState>()(
   persist(
     (set, get) => ({
       budgets: [],
+      subcategoryBudgets: [],
       weeklyLimit: null,
       monthlyLimit: null,
       cycleLimit: null,
@@ -139,6 +175,100 @@ export const useBudgetStore = create<BudgetState>()(
 
       removeCategoryBudget: (categoryId, periodType) => {
         get().setCategoryBudget(categoryId, periodType, 0);
+      },
+
+      setSubcategoryBudget: (categoryId, subcategory, periodType, amount) => {
+        const cleanSubcat = subcategory.trim();
+        if (!cleanSubcat) return;
+        const now = new Date().toISOString();
+        const safeAmount = Math.max(0, Math.round(amount * 100) / 100);
+        const propName: keyof Pick<
+          SubcategoryBudget,
+          'amount' | 'weeklyAmount' | 'monthlyAmount' | 'customAmount'
+        > =
+          periodType === 'cycle'
+            ? 'amount'
+            : periodType === 'weekly'
+            ? 'weeklyAmount'
+            : periodType === 'monthly'
+            ? 'monthlyAmount'
+            : 'customAmount';
+
+        set((state) => {
+          const list = state.subcategoryBudgets || [];
+          const existingIndex = list.findIndex(
+            (b) =>
+              b.categoryId === categoryId &&
+              b.subcategory.toLowerCase() === cleanSubcat.toLowerCase()
+          );
+
+          if (existingIndex === -1) {
+            if (safeAmount <= 0) return state;
+            const newBudget: SubcategoryBudget = {
+              id: generateId(),
+              categoryId,
+              subcategory: cleanSubcat,
+              amount: periodType === 'cycle' ? safeAmount : 0,
+              weeklyAmount: periodType === 'weekly' ? safeAmount : undefined,
+              monthlyAmount: periodType === 'monthly' ? safeAmount : undefined,
+              customAmount: periodType === 'custom' ? safeAmount : undefined,
+              createdAt: now,
+              updatedAt: now,
+            };
+            return { subcategoryBudgets: [...list, newBudget] };
+          }
+
+          const existing = list[existingIndex]!;
+          const updatedBudget: SubcategoryBudget = {
+            ...existing,
+            [propName]: safeAmount > 0 ? safeAmount : propName === 'amount' ? 0 : undefined,
+            updatedAt: now,
+          };
+
+          const updatedList = [...list];
+          updatedList[existingIndex] = updatedBudget;
+          return { subcategoryBudgets: updatedList };
+        });
+      },
+
+      getSubcategoryBudget: (categoryId, subcategory, periodType) => {
+        const cleanSubcat = subcategory.trim().toLowerCase();
+        const list = get().subcategoryBudgets || [];
+        const b = list.find(
+          (item) =>
+            item.categoryId === categoryId &&
+            item.subcategory.toLowerCase() === cleanSubcat
+        );
+        if (!b) return 0;
+        if (periodType === 'cycle') return b.amount || 0;
+        if (periodType === 'weekly') return b.weeklyAmount || 0;
+        if (periodType === 'monthly') return b.monthlyAmount || 0;
+        if (periodType === 'custom') return b.customAmount || 0;
+        return 0;
+      },
+
+      removeSubcategoryBudget: (categoryId, subcategory, periodType) => {
+        get().setSubcategoryBudget(categoryId, subcategory, periodType, 0);
+      },
+
+      getSubcategoryBudgetsForCategory: (categoryId, periodType) => {
+        const list = get().subcategoryBudgets || [];
+        const filtered = list.filter((item) => item.categoryId === categoryId);
+        const results: Array<{ subcategory: string; amount: number }> = [];
+
+        for (const item of filtered) {
+          let amount = 0;
+          if (periodType === 'cycle') amount = item.amount || 0;
+          else if (periodType === 'weekly') amount = item.weeklyAmount || 0;
+          else if (periodType === 'monthly') amount = item.monthlyAmount || 0;
+          else if (periodType === 'custom') amount = item.customAmount || 0;
+
+          if (amount > 0) {
+            results.push({ subcategory: item.subcategory, amount });
+          }
+        }
+
+        return results;
       },
 
       // Métodos Legacy

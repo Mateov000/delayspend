@@ -46,7 +46,7 @@ export function ExpenseForm({
   const { getBudgetForCategory } = useBudgetStore();
 
   const todayStr = new Date().toISOString().split('T')[0] ?? '';
-  const { customCategories, viceSubcategories, addViceSubcategory } = useCategoryStore();
+  const { customCategories, getSubcategoriesForCategory, addSubcategory } = useCategoryStore();
   const allCategories = getAllCategories(customCategories);
 
   // Estado de gasto ficticio (máscara para padres)
@@ -54,10 +54,19 @@ export function ExpenseForm({
     Boolean(initialValues?.isFictitious)
   );
 
-  // Subcategorías dinámicas para categoría Vicios
-  const currentSubcats = viceSubcategories && viceSubcategories.length > 0 ? viceSubcategories : ['Puchos'];
+  // Estado principal del formulario
+  const [type, setType] = useState<ExpenseType>(initialValues?.type ?? 'real');
+  const [amountStr, setAmountStr] = useState<string>(
+    initialValues?.amount ? String(initialValues.amount) : ''
+  );
+  const [description, setDescription] = useState<string>(initialValues?.description ?? '');
+  const [categoryId, setCategoryId] = useState<CategoryId>(initialValues?.categoryId ?? 'food');
+  const [date, setDate] = useState<string>(initialValues?.date ?? todayStr);
+
+  // Subcategorías dinámicas para la categoría seleccionada
+  const currentSubcats = getSubcategoriesForCategory(categoryId);
   const [subcategory, setSubcategory] = useState<string>(
-    initialValues?.subcategory ?? (initialValues?.categoryId === 'vices' ? currentSubcats[0]! : 'Puchos')
+    initialValues?.subcategory ?? (categoryId === 'vices' && currentSubcats.length > 0 ? currentSubcats[0]! : '')
   );
   const [isAddingSubcategory, setIsAddingSubcategory] = useState<boolean>(false);
   const [newSubcatInput, setNewSubcatInput] = useState<string>('');
@@ -68,21 +77,12 @@ export function ExpenseForm({
       setIsAddingSubcategory(false);
       return;
     }
-    addViceSubcategory(clean);
+    addSubcategory(categoryId, clean);
     setSubcategory(clean);
     setNewSubcatInput('');
     setIsAddingSubcategory(false);
     showToast(`Subcategoría "${clean}" agregada.`, 'success');
   };
-
-  // Estado principal del formulario
-  const [type, setType] = useState<ExpenseType>(initialValues?.type ?? 'real');
-  const [amountStr, setAmountStr] = useState<string>(
-    initialValues?.amount ? String(initialValues.amount) : ''
-  );
-  const [description, setDescription] = useState<string>(initialValues?.description ?? '');
-  const [categoryId, setCategoryId] = useState<CategoryId>(initialValues?.categoryId ?? 'food');
-  const [date, setDate] = useState<string>(initialValues?.date ?? todayStr);
 
   // Opción más barata / sobreprecio evitado (solo en real)
   const [hasCheaperOption, setHasCheaperOption] = useState<boolean>(
@@ -160,6 +160,8 @@ export function ExpenseForm({
       }
     }
 
+    const cleanSubcategory = subcategory.trim();
+
     onSubmit({
       type: isFictitious ? 'real' : type,
       amount: cleanAmount,
@@ -174,7 +176,7 @@ export function ExpenseForm({
       installmentTotal: !isFictitious && type === 'real' && hasInstallments ? installmentCount : null,
       isRecurring: type === 'real' && nature === 'fixed' ? true : undefined,
       nature: type === 'real' ? nature : undefined,
-      subcategory: categoryId === 'vices' ? subcategory : undefined,
+      subcategory: cleanSubcategory ? cleanSubcategory : undefined,
       isFictitious: isFictitious || undefined,
     });
   };
@@ -324,7 +326,7 @@ export function ExpenseForm({
         )}
       </div>
 
-      {/* 3. Opción más barata / Ahorro extra DelaySpend (solo en real) */}
+      {/* 3. Opción más barata / Ahorro extra DelaySpend (solo en real y no ficticio) */}
       {type === 'real' && !isFictitious && (
         <div className="flex flex-col gap-3 p-3.5 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl shadow-2xs">
           <div
@@ -444,8 +446,13 @@ export function ExpenseForm({
                       return;
                     }
                     setCategoryId(cat.id);
-                    if (cat.id === 'vices' && !subcategory && currentSubcats.length > 0) {
-                      setSubcategory(currentSubcats[0]!);
+                    const subcats = getSubcategoriesForCategory(cat.id);
+                    if (cat.id === 'vices') {
+                      if (!subcategory && subcats.length > 0) {
+                        setSubcategory(subcats[0]!);
+                      }
+                    } else if (subcategory && !subcats.some((s) => s.toLowerCase() === subcategory.toLowerCase())) {
+                      setSubcategory('');
                     }
                   }}
                   disabled={isVicesDisabled}
@@ -466,8 +473,8 @@ export function ExpenseForm({
             })}
           </div>
 
-          {/* Subcategorías dinámicas de Vicios */}
-          {type === 'real' && categoryId === 'vices' && (
+          {/* Subcategorías de la categoría seleccionada */}
+          {categoryId === 'vices' ? (
             <div className="flex flex-col gap-2 p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl mt-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-amber-900 uppercase tracking-wider">
@@ -485,7 +492,7 @@ export function ExpenseForm({
                     <button
                       key={sub}
                       type="button"
-                      onClick={() => setSubcategory(sub)}
+                      onClick={() => setSubcategory(isSelected ? '' : sub)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-amber-600 text-white shadow-xs scale-102'
@@ -527,6 +534,90 @@ export function ExpenseForm({
                       onClick={handleAddSubcategory}
                       className="p-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700 cursor-pointer"
                       title="Guardar subcategoría"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingSubcategory(false);
+                        setNewSubcatInput('');
+                      }}
+                      className="p-1 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 cursor-pointer"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl mt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                  Subcategoría opcional {selectedCategoryObj ? `(${selectedCategoryObj.name})` : ''}
+                </label>
+                {subcategory && (
+                  <button
+                    type="button"
+                    onClick={() => setSubcategory('')}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    Quitar subcategoría
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {currentSubcats.map((sub) => {
+                  const isSelected = subcategory.toLowerCase() === sub.toLowerCase();
+                  return (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => setSubcategory(isSelected ? '' : sub)}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  );
+                })}
+
+                {!isAddingSubcategory ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingSubcategory(true)}
+                    className="px-2 py-1 rounded-xl text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 hover:bg-indigo-100 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>+ Subcategoría</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={newSubcatInput}
+                      onChange={(e) => setNewSubcatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSubcategory();
+                        }
+                      }}
+                      placeholder="Ej: Delivery, Kiosco..."
+                      className="px-2.5 py-1 rounded-xl text-xs border border-indigo-300 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSubcategory}
+                      className="p-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                      title="Guardar"
                     >
                       <Check className="w-3.5 h-3.5" />
                     </button>

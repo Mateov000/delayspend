@@ -46,12 +46,17 @@ export interface CategoryState {
   customCategories: Category[];
   /** IDs de categorías que al exportar la rendición para padres se agrupan bajo "Otros Gastos" */
   parentMaskedCategoryIds: string[];
-  /** Subcategorías disponibles para la categoría Vicios (ej: Puchos, Alcohol, etc.) */
+  /** Subcategorías indexadas por categoryId (ej: { vices: ['Puchos'], food: ['Delivery', 'Almuerzo'] }) */
+  subcategoriesByCategory: Record<string, string[]>;
+  /** Subcategorías disponibles para la categoría Vicios (compatibilidad retroactiva) */
   viceSubcategories: string[];
   addCustomCategory: (name: string, icon?: string, paletteIndex?: number) => Category;
   removeCustomCategory: (id: string) => void;
   toggleParentMaskedCategory: (categoryId: string) => void;
   isParentMasked: (categoryId: string) => boolean;
+  addSubcategory: (categoryId: string, name: string) => void;
+  removeSubcategory: (categoryId: string, name: string) => void;
+  getSubcategoriesForCategory: (categoryId: string) => string[];
   addViceSubcategory: (name: string) => void;
 }
 
@@ -61,21 +66,73 @@ export const useCategoryStore = create<CategoryState>()(
       customCategories: [],
       // 'aesthetics' queda enmascarada automáticamente por defecto
       parentMaskedCategoryIds: ['aesthetics'],
-      // Subcategorías iniciales de Vicios
+      // Subcategorías iniciales universales y de vicios
+      subcategoriesByCategory: {
+        vices: ['Puchos'],
+      },
       viceSubcategories: ['Puchos'],
 
-      addViceSubcategory: (name: string) => {
+      getSubcategoriesForCategory: (categoryId: string) => {
+        const state = get();
+        const map = state.subcategoriesByCategory || {};
+        if (map[categoryId] && Array.isArray(map[categoryId])) {
+          return map[categoryId];
+        }
+        if (categoryId === 'vices') {
+          return state.viceSubcategories && state.viceSubcategories.length > 0
+            ? state.viceSubcategories
+            : ['Puchos'];
+        }
+        return [];
+      },
+
+      addSubcategory: (categoryId: string, name: string) => {
         const cleanName = name.trim();
         if (!cleanName) return;
         set((state) => {
-          const current = state.viceSubcategories || ['Puchos'];
+          const map = { ...(state.subcategoriesByCategory || {}) };
+          const current = map[categoryId]
+            ? [...map[categoryId]]
+            : categoryId === 'vices'
+            ? [...(state.viceSubcategories || ['Puchos'])]
+            : [];
+
           if (current.some((s) => s.toLowerCase() === cleanName.toLowerCase())) {
             return state;
           }
+
+          const updated = [...current, cleanName];
+          map[categoryId] = updated;
+
           return {
-            viceSubcategories: [...current, cleanName],
+            subcategoriesByCategory: map,
+            viceSubcategories: categoryId === 'vices' ? updated : state.viceSubcategories,
           };
         });
+      },
+
+      removeSubcategory: (categoryId: string, name: string) => {
+        const cleanName = name.trim().toLowerCase();
+        set((state) => {
+          const map = { ...(state.subcategoriesByCategory || {}) };
+          const current = map[categoryId]
+            ? [...map[categoryId]]
+            : categoryId === 'vices'
+            ? [...(state.viceSubcategories || ['Puchos'])]
+            : [];
+
+          const updated = current.filter((s) => s.trim().toLowerCase() !== cleanName);
+          map[categoryId] = updated;
+
+          return {
+            subcategoriesByCategory: map,
+            viceSubcategories: categoryId === 'vices' ? updated : state.viceSubcategories,
+          };
+        });
+      },
+
+      addViceSubcategory: (name: string) => {
+        get().addSubcategory('vices', name);
       },
 
       addCustomCategory: (name: string, icon = 'Sparkles', paletteIndex = 0) => {
@@ -123,6 +180,16 @@ export const useCategoryStore = create<CategoryState>()(
     {
       name: 'delayspend_categories_v1',
       storage: createJSONStorage(() => localStorage),
+      // Migración para poblar subcategoriesByCategory a partir de viceSubcategories si es necesario
+      migrate: (persistedState: any) => {
+        if (!persistedState) return persistedState;
+        if (!persistedState.subcategoriesByCategory) {
+          persistedState.subcategoriesByCategory = {
+            vices: persistedState.viceSubcategories || ['Puchos'],
+          };
+        }
+        return persistedState;
+      },
     }
   )
 );
