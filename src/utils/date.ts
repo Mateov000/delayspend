@@ -43,12 +43,7 @@ export function isExpenseMatchingFilter(
   if (filter.type === 'all') return true;
 
   if (filter.type === 'custom_period' && period) {
-    if (expense.periodId) {
-      return expense.periodId === period.id;
-    }
-    if (expense.date < period.startDate) return false;
-    if (period.endDate && expense.date > period.endDate) return false;
-    return true;
+    return isExpenseInPeriod(expense, period);
   }
 
   return isWithinPeriod(expense.date, filter, period);
@@ -56,14 +51,21 @@ export function isExpenseMatchingFilter(
 
 /**
  * Verifica si un gasto pertenece directamente a un período específico.
- * Usa periodId si está seteado, si no, rango de fechas del período.
+ * Valida primero que la fecha del gasto esté dentro de los límites del ciclo,
+ * y luego comprueba periodId si está presente.
  */
 export function isExpenseInPeriod(expense: Expense, period: Period): boolean {
+  if (period.deletedAt) return false;
+
+  // Si la fecha del gasto está fuera de los límites cronológicos del período, no pertenece a él
+  if (expense.date < period.startDate) return false;
+  if (period.endDate && expense.date > period.endDate) return false;
+
+  // Si cae dentro del rango de fechas del período:
   if (expense.periodId) {
     return expense.periodId === period.id;
   }
-  if (expense.date < period.startDate) return false;
-  if (period.endDate && expense.date > period.endDate) return false;
+
   return true;
 }
 

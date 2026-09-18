@@ -213,10 +213,13 @@ Una regla de oro de DelaySpend es que **el ahorro acumulado histórico solo comp
 **Razón:** En el período en curso, el dinero todavía está en movimiento; computar el sobrante de un período que no terminó daría una ilusión de ahorro que podría gastarse mañana.
 
 El ahorro acumulado se compone de:
-1. **Ahorro por compras postergadas:** Suma de todas las compras delayeadas y sobreprecios evitados de los ciclos cerrados.
-2. **Sobrante de ingresos:** Suma del dinero transferido que sobró al cierre de cada ciclo:
-   $$\text{Sobrante de Ciclo} = \max(0, \text{Ingreso Efectivo} - \text{Gastos Reales})$$
-   $$\text{Ahorro Histórico Total} = \text{Ahorro Postergado} + \text{Sobrante de Ingresos}$$
+1. **Ahorro por compras postergadas (DelaySpend):** Suma consolidada de compras delayeadas no consumadas y sobreprecios evitados de los ciclos cerrados.
+   - **Desglose interactivo:** Al tocar la tarjeta de *Ahorro DelaySpend*, se despliega un acordeón interactivo que detalla:
+     - 🛡️ **Gasto no consumado directamente:** Compras impulsivas que frenaste y postergaste.
+     - ✨ **Ahorro por versión más barata:** Sobreprecio evitado al optar por alternativas más económicas (`savedExtraAmount`).
+2. **Sobrante de ingresos (Balance Neto):** Suma del balance neto de ingresos menos gastos de cada ciclo cerrado (por ejemplo, si en un ciclo sobraron $4.800 y en el siguiente faltaron $1.700, el sobrante neto refleja fielmente $3.100):
+   $$\text{Sobrante de Ciclo} = \text{Ingreso Efectivo} - \text{Gastos Reales}$$
+   $$\text{Ahorro Histórico Total} = \text{Ahorro DelaySpend} + \text{Sobrante de Ingresos}$$
 
 ### 7.2 Selector Interactivo de Naturalezas en los Gráficos
 En Analíticas, arriba del gráfico de dona de categorías, tenés 4 casillas interactivas:
@@ -255,9 +258,9 @@ Al lado del interruptor de rendición unificada hay un botón de tuerquita ⚙�
    - Si está desmarcada: muestra solo fecha, concepto y monto (ej: `• 15/09: Almuerzo - $6.500`).
 2. **Casilla "Mostrar etiqueta de naturaleza":**
    - Agrega o quita las marcas: `[🏠 Para la casa]`, `[🔄 Fijo]`, `[⚡ Eventual]`, `[🛒 Cotidiano]`.
-3. **Casillas individuales de naturalezas a incluir:**
-   - Podés tildar o destildar selectivamente: Cotidianos, Fijos, Eventuales o Para la casa.
-   - Si solo querés rendir lo que compraste para la casa, desmarcás las otras tres y listo.
+3. **Casillas individuales de rótulos de naturalezas a mostrar:**
+   - Podés elegir para qué naturalezas querés que figure el rótulo al lado del gasto: Cotidianos, Fijos, Eventuales o Para la casa.
+   - **Nota contable:** Todos los gastos del período se incluyen siempre en el reporte para que la rendición cuadre con exactitud matemática; las casillas solo determinan si el rótulo descriptivo aparece o se oculta al lado de cada ítem.
 4. **Modo de Resumen Financiero al final:**
    - **Detalle completo:** Muestra ingreso asignado, total a rendir, saldo disponible remanente y total destinado a la casa.
    - **Solo total a rendir:** Termina simplemente diciendo:
@@ -333,3 +336,4 @@ Porque le asignaste la naturaleza **"Para la casa" (`house`)**. El sistema aísl
 
 ---
 *Fin del Manual de Uso — DelaySpend v1.5.0*
+

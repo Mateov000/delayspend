@@ -2,20 +2,25 @@ import { Expense, Period } from '../store/types';
 import { isExpenseInPeriod } from './date';
 
 export interface HistoricalSavings {
-  /** Ahorro generado por postergación DelaySpend en períodos cerrados (delayed + savedExtraAmount) */
-  delaySpendSavings: number;
-  /** Dinero no gastado del presupuesto/ingresos asignados en períodos cerrados */
-  incomeLeftoverSavings: number;
-  /** Suma total de ambos componentes de ahorro en períodos cerrados */
+  /** Ahorro acumulado total en períodos cerrados: delaySpendSavings + incomeLeftoverSavings */
   totalSavings: number;
+  /** Ahorro total por postergaciones (compras evitadas + sobreprecios evitados) */
+  delaySpendSavings: number;
+  /** Desglose: compras que ibas a hacer y postergaste (no consumadas directamente) */
+  delaySpendDirect: number;
+  /** Desglose: ahorro por opción más barata (sobreprecio evitado en gastos reales) */
+  delaySpendCheaper: number;
+  /** Sobrante neto de ingresos de períodos cerrados (ingresos efectivos - gastos reales) */
+  incomeLeftoverSavings: number;
   /** Cantidad de períodos cerrados auditados */
   closedPeriodsCount: number;
 }
 
 /**
- * Calcula el ahorro histórico acumulado considerando EXCLUSIVAMENTE los períodos ya cerrados (endDate !== null):
- * 1. delaySpendSavings: compras postergadas + ahorros por alternativas más baratas dentro de períodos cerrados.
- * 2. incomeLeftoverSavings: sobrante de ingresos efectivos menos gastos reales en períodos cerrados.
+ * Calcula el ahorro histórico acumulado considerando EXCLUSIVAMENTE los períodos cerrados (endDate !== null):
+ * 1. delaySpendSavings: suma de compras postergadas (no consumadas) + ahorros por alternativa más barata.
+ * 2. incomeLeftoverSavings: balance neto de ingresos asignados menos gastos reales de ciclos concluidos.
+ * 3. totalSavings: suma de ambos componentes de ahorro acumulado.
  */
 export function calculateHistoricalSavings(
   expenses: Expense[],
@@ -25,55 +30,58 @@ export function calculateHistoricalSavings(
 
   if (closedPeriods.length === 0) {
     return {
-      delaySpendSavings: 0,
-      incomeLeftoverSavings: 0,
       totalSavings: 0,
+      delaySpendSavings: 0,
+      delaySpendDirect: 0,
+      delaySpendCheaper: 0,
+      incomeLeftoverSavings: 0,
       closedPeriodsCount: 0,
     };
   }
 
-  let delaySpendSavings = 0;
+  let delaySpendDirect = 0;
+  let delaySpendCheaper = 0;
   let incomeLeftoverSavings = 0;
 
   for (const period of closedPeriods) {
     const periodExpenses = expenses.filter((e) => isExpenseInPeriod(e, period));
 
     let periodReal = 0;
-    let periodDelayed = 0;
     let periodExtraIncome = 0;
 
     for (const exp of periodExpenses) {
       if (exp.type === 'real') {
         periodReal += exp.amount;
         if (exp.savedExtraAmount && exp.savedExtraAmount > 0) {
-          periodDelayed += exp.savedExtraAmount;
+          delaySpendCheaper += exp.savedExtraAmount;
         }
       } else if (exp.type === 'delayed') {
-        periodDelayed += exp.amount;
+        delaySpendDirect += exp.amount;
       } else if (exp.type === 'income') {
         periodExtraIncome += exp.amount;
       }
     }
 
-    // Ahorro DelaySpend del ciclo cerrado
-    delaySpendSavings += periodDelayed;
-
-    // Sobrante de presupuesto/ingresos del ciclo cerrado
+    // Sobrante neto de ingresos del ciclo cerrado (ingreso efectivo - gastos reales)
     const effectiveIncome = (period.initialIncome || 0) + periodExtraIncome;
     if (effectiveIncome > 0) {
-      const leftover = Math.max(0, effectiveIncome - periodReal);
+      const leftover = effectiveIncome - periodReal;
       incomeLeftoverSavings += leftover;
     }
   }
 
-  const roundedDelay = Math.round(delaySpendSavings * 100) / 100;
+  const roundedDirect = Math.round(delaySpendDirect * 100) / 100;
+  const roundedCheaper = Math.round(delaySpendCheaper * 100) / 100;
+  const roundedDelay = Math.round((roundedDirect + roundedCheaper) * 100) / 100;
   const roundedLeftover = Math.round(incomeLeftoverSavings * 100) / 100;
   const roundedTotal = Math.round((roundedDelay + roundedLeftover) * 100) / 100;
 
   return {
-    delaySpendSavings: roundedDelay,
-    incomeLeftoverSavings: roundedLeftover,
     totalSavings: roundedTotal,
+    delaySpendSavings: roundedDelay,
+    delaySpendDirect: roundedDirect,
+    delaySpendCheaper: roundedCheaper,
+    incomeLeftoverSavings: roundedLeftover,
     closedPeriodsCount: closedPeriods.length,
   };
 }

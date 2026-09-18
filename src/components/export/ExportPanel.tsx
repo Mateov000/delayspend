@@ -83,12 +83,9 @@ export function ExportPanel({
   const toggleNature = (nature: ExpenseNature) => {
     setConfig((prev) => {
       const current = prev.includedNatures ?? DEFAULT_CONFIG.includedNatures!;
-      const updated = { ...current, [nature]: !current[nature] };
-      // Asegurar que al menos una naturaleza esté activa
-      const hasAny = Object.values(updated).some(Boolean);
       return {
         ...prev,
-        includedNatures: hasAny ? updated : current,
+        includedNatures: { ...current, [nature]: !current[nature] },
       };
     });
   };
@@ -222,10 +219,17 @@ export function ExportPanel({
                 </div>
               </label>
 
-              {/* 3. Naturalezas a incluir en el reporte */}
-              <div className="flex flex-col gap-1.5 bg-white p-2.5 rounded-xl border border-indigo-100">
+              {/* 3. Rótulos de naturaleza visibles */}
+              <div
+                className={`flex flex-col gap-1.5 bg-white p-2.5 rounded-xl border border-indigo-100 transition-opacity ${
+                  !(config.showNature ?? true) ? 'opacity-50 pointer-events-none' : ''
+                }`}
+              >
                 <span className="font-semibold text-slate-800 text-xs">
-                  Naturalezas a incluir en el reporte:
+                  Rótulos de naturaleza visibles:
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Elegí para cuáles querés que aparezca el rótulo al lado del gasto. Todos los gastos seguirán apareciendo en el reporte.
                 </span>
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">

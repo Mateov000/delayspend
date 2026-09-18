@@ -52,12 +52,7 @@ export function generateWhatsAppReport(
   const period = options?.period ?? null;
   const filtered = expenses
     .filter((e) => !e.linkedExpenseId)
-    .filter((e) => isExpenseMatchingFilter(e, filter, period))
-    .filter((e) => {
-      if (!options?.includedNatures) return true;
-      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
-      return options.includedNatures[nature] ?? true;
-    });
+    .filter((e) => isExpenseMatchingFilter(e, filter, period));
 
   const lines: string[] = [];
 
@@ -91,10 +86,15 @@ export function generateWhatsAppReport(
         let natureTag = '';
         if (showNat) {
           const nat = exp.nature ?? (exp.isRecurring ? 'fixed' : 'daily');
-          if (nat === 'house') natureTag = ' 🏠 [Para la casa]';
-          else if (nat === 'fixed') natureTag = ' 🔄 [Fijo]';
-          else if (nat === 'eventual') natureTag = ' ⚡ [Eventual]';
-          else if (nat === 'daily') natureTag = ' 🛒 [Cotidiano]';
+          const isNatureIncluded = options?.includedNatures
+            ? (options.includedNatures[nat] ?? true)
+            : true;
+          if (isNatureIncluded) {
+            if (nat === 'house') natureTag = ' 🏠 [Para la casa]';
+            else if (nat === 'fixed') natureTag = ' 🔄 [Fijo]';
+            else if (nat === 'eventual') natureTag = ' ⚡ [Eventual]';
+            else if (nat === 'daily') natureTag = ' 🛒 [Cotidiano]';
+          }
         }
 
         lines.push(
@@ -214,12 +214,7 @@ export function downloadExpensesCSV(
   const period = options?.period ?? null;
   const filtered = expenses
     .filter((e) => !e.linkedExpenseId)
-    .filter((e) => isExpenseMatchingFilter(e, filter, period))
-    .filter((e) => {
-      if (!options?.includedNatures) return true;
-      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
-      return options.includedNatures[nature] ?? true;
-    });
+    .filter((e) => isExpenseMatchingFilter(e, filter, period));
 
   const escapeCSV = (field: string | number) => {
     const str = String(field);
