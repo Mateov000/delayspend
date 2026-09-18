@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Expense, Period, PeriodFilterState } from '../../store/types';
+import { Expense, Period, PeriodFilterState, ExpenseNature } from '../../store/types';
 import { usePeriodStore } from '../../store/usePeriodStore';
 import { useFilterStore } from '../../store/useFilterStore';
 import { HistoricalSavingsCard } from './HistoricalSavingsCard';
@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Calendar,
   ChevronDown,
+  Filter,
 } from 'lucide-react';
 
 interface AnalyticsViewProps {
@@ -42,6 +43,31 @@ export function AnalyticsView({
   const { setFilterType } = useFilterStore();
   const [isCycleSheetOpen, setIsCycleSheetOpen] = useState(false);
 
+  // Filtro de naturalezas de gasto para los gráficos (por defecto todas marcadas)
+  const [selectedNatures, setSelectedNatures] = useState<Record<ExpenseNature, boolean>>({
+    daily: true,
+    fixed: true,
+    eventual: true,
+    house: true,
+  });
+
+  const toggleNature = (nature: ExpenseNature) => {
+    setSelectedNatures((prev) => {
+      const updated = { ...prev, [nature]: !prev[nature] };
+      // Asegurar que al menos una naturaleza quede seleccionada
+      const hasAny = Object.values(updated).some(Boolean);
+      return hasAny ? updated : prev;
+    });
+  };
+
+  const setOnlyDaily = () => {
+    setSelectedNatures({ daily: true, fixed: false, eventual: false, house: false });
+  };
+
+  const setAllNatures = () => {
+    setSelectedNatures({ daily: true, fixed: true, eventual: true, house: true });
+  };
+
   const historicalSavings = useMemo(
     () => calculateHistoricalSavings(expenses, periods),
     [expenses, periods]
@@ -61,10 +87,19 @@ export function AnalyticsView({
   );
 
   // Gastos del período seleccionado para el donut y naturaleza
+  // Gastos del período seleccionado
   const filteredExpenses = useMemo(
     () => expenses.filter((e) => isExpenseMatchingFilter(e, activeFilter, activePeriod)),
     [expenses, activeFilter, activePeriod]
   );
+
+  // Gastos filtrados por naturaleza para alimentar los gráficos
+  const chartExpenses = useMemo(() => {
+    return filteredExpenses.filter((e) => {
+      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
+      return selectedNatures[nature] ?? true;
+    });
+  }, [filteredExpenses, selectedNatures]);
 
   // Handlers para cambiar de período
   const handleSelectPeriod = (periodId: string) => {
@@ -104,6 +139,8 @@ export function AnalyticsView({
       isAll: true,
     };
   }, [activePeriod, filteredExpenses, periods, expenses]);
+
+  const activeNaturesCount = Object.values(selectedNatures).filter(Boolean).length;
 
   return (
     <div className="flex flex-col gap-5 px-4 py-4">
@@ -352,6 +389,7 @@ export function AnalyticsView({
       </BottomSheet>
 
       {/* Sección 1: Ahorro histórico acumulado */}
+      {/* Sección 1: Ahorro histórico acumulado (estrictamente períodos cerrados) */}
       <section aria-label="Ahorro acumulado histórico">
         <SectionHeader icon={<PiggyBank className="w-4 h-4" />} title="Ahorro acumulado" />
         <div className="mt-3">
@@ -367,7 +405,7 @@ export function AnalyticsView({
           subtitle={
             activePeriod
               ? `Ritmo y presupuesto de ${activePeriod.name}`
-              : 'Ritmo actual del ciclo y metas semanales'
+              : 'Ritmo actual del ciclo y metas multitemporales'
           }
         />
         <div className="mt-3">
@@ -380,14 +418,130 @@ export function AnalyticsView({
       </section>
 
       {/* Sección 3: Distribución por categoría */}
+      {/* Control de filtro por Naturaleza de Gasto para los Gráficos */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-3 shadow-xs flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+            <Filter className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Naturalezas de gasto en gráficos:</span>
+          </div>
+          <div className="flex items-center gap-1 text-[11px]">
+            <button
+              type="button"
+              onClick={setAllNatures}
+              className="text-indigo-600 hover:text-indigo-800 font-bold px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+            >
+              Todas
+            </button>
+            <span className="text-slate-300">|</span>
+            <button
+              type="button"
+              onClick={setOnlyDaily}
+              className="text-slate-600 hover:text-slate-800 font-semibold px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+            >
+              Solo corrientes
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+          {/* Cotidianos */}
+          <button
+            type="button"
+            onClick={() => toggleNature('daily')}
+            className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+              selectedNatures.daily
+                ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 shadow-2xs font-bold'
+                : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <span>🛒</span>
+              <span className="truncate">Cotidianos</span>
+            </div>
+            <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px] ${
+              selectedNatures.daily ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300'
+            }`}>
+              {selectedNatures.daily ? '✓' : ''}
+            </span>
+          </button>
+
+          {/* Fijos */}
+          <button
+            type="button"
+            onClick={() => toggleNature('fixed')}
+            className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+              selectedNatures.fixed
+                ? 'bg-blue-50/80 border-blue-300 text-blue-950 shadow-2xs font-bold'
+                : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <span>🔄</span>
+              <span className="truncate">Fijos</span>
+            </div>
+            <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px] ${
+              selectedNatures.fixed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300'
+            }`}>
+              {selectedNatures.fixed ? '✓' : ''}
+            </span>
+          </button>
+
+          {/* Eventuales */}
+          <button
+            type="button"
+            onClick={() => toggleNature('eventual')}
+            className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+              selectedNatures.eventual
+                ? 'bg-amber-50/80 border-amber-300 text-amber-950 shadow-2xs font-bold'
+                : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <span>⚡</span>
+              <span className="truncate">Eventuales</span>
+            </div>
+            <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px] ${
+              selectedNatures.eventual ? 'bg-amber-600 border-amber-600 text-white' : 'border-slate-300'
+            }`}>
+              {selectedNatures.eventual ? '✓' : ''}
+            </span>
+          </button>
+
+          {/* Para la casa */}
+          <button
+            type="button"
+            onClick={() => toggleNature('house')}
+            className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+              selectedNatures.house
+                ? 'bg-purple-50/80 border-purple-300 text-purple-950 shadow-2xs font-bold'
+                : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <span>🏠</span>
+              <span className="truncate">Casa</span>
+            </div>
+            <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px] ${
+              selectedNatures.house ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300'
+            }`}>
+              {selectedNatures.house ? '✓' : ''}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Sección 3: Distribución por categoría (afectada por filtro de naturalezas) */}
       <section aria-label="Distribución de gastos por categoría">
         <SectionHeader
           icon={<PieChart className="w-4 h-4" />}
           title="Distribución por categoría"
-          subtitle={activePeriod ? activePeriod.name : 'Todo el historial'}
+          subtitle={`${activePeriod ? activePeriod.name : 'Todo el historial'} · ${
+            activeNaturesCount === 4 ? 'Todas las naturalezas' : `${activeNaturesCount} naturalezas seleccionadas`
+          }`}
         />
         <div className="mt-3 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
-          <CategoryDonutChart expenses={filteredExpenses} />
+          <CategoryDonutChart expenses={chartExpenses} />
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-import { Expense, FinancialMetrics, Period, PeriodFilterState } from '../store/types';
+import { Expense, FinancialMetrics, Period, PeriodFilterState, ExpenseNature } from '../store/types';
 import { findCategoryById, useCategoryStore } from '../store/useCategoryStore';
 import { formatCurrency, formatDayMonth } from './format';
 import { STRINGS } from '../constants/strings';
@@ -29,7 +29,14 @@ function getPeriodLabel(filter: PeriodFilterState, period?: Period | null): stri
   return 'Historial Completo';
 }
 
-export interface ExportOptions {
+export interface ParentExportConfig {
+  showCategory?: boolean;
+  showNature?: boolean;
+  includedNatures?: Record<ExpenseNature, boolean>;
+  summaryMode?: 'full' | 'total_only';
+}
+
+export interface ExportOptions extends ParentExportConfig {
   unified?: boolean;
   period?: Period | null;
   maskedCategoryIds?: string[];
@@ -45,7 +52,12 @@ export function generateWhatsAppReport(
   const period = options?.period ?? null;
   const filtered = expenses
     .filter((e) => !e.linkedExpenseId)
-    .filter((e) => isExpenseMatchingFilter(e, filter, period));
+    .filter((e) => isExpenseMatchingFilter(e, filter, period))
+    .filter((e) => {
+      if (!options?.includedNatures) return true;
+      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
+      return options.includedNatures[nature] ?? true;
+    });
 
   const lines: string[] = [];
 
@@ -55,7 +67,10 @@ export function generateWhatsAppReport(
 
   if (unified) {
     // Modo Unificado (Reporte para padres):
-    // Cada compra aparece como un único gasto consolidado (contando gasto real + delay ahorrado)
+    const showCat = options?.showCategory ?? true;
+    const showNat = options?.showNature ?? true;
+    const summaryMode = options?.summaryMode ?? 'full';
+
     lines.push(STRINGS.EXPORT_WHATSAPP_UNIFIED_SECTION);
 
     if (filtered.length === 0) {
@@ -72,36 +87,59 @@ export function generateWhatsAppReport(
             ? exp.amount + (exp.savedExtraAmount || 0)
             : exp.amount;
 
-        const houseTag = exp.nature === 'house' ? ' 🏠 [Para la casa]' : '';
+        const catTag = showCat ? ` [${catName}]` : '';
+        let natureTag = '';
+        if (showNat) {
+          const nat = exp.nature ?? (exp.isRecurring ? 'fixed' : 'daily');
+          if (nat === 'house') natureTag = ' 🏠 [Para la casa]';
+          else if (nat === 'fixed') natureTag = ' 🔄 [Fijo]';
+          else if (nat === 'eventual') natureTag = ' ⚡ [Eventual]';
+          else if (nat === 'daily') natureTag = ' 🛒 [Cotidiano]';
+        }
+
         lines.push(
-          `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(totalAmount)} [${catName}]${houseTag}`
+          `• ${formatDayMonth(exp.date)}: ${exp.description} - ${formatCurrency(totalAmount)}${catTag}${natureTag}`
         );
       }
     }
     lines.push('');
 
     // Resumen Financiero Unificado
-    lines.push(STRINGS.EXPORT_WHATSAPP_SUMMARY_SECTION);
-    if (metrics.initialIncome > 0) {
-      lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(metrics.initialIncome)}`);
+    const totalUnifiedAmount = filtered.reduce(
+      (sum, e) => sum + (e.type === 'real' ? e.amount + (e.savedExtraAmount || 0) : e.amount),
+      0
+    );
+
+    if (summaryMode === 'total_only') {
+      lines.push('📈 *Total:*');
+      lines.push(`• Total a rendir: ${formatCurrency(totalUnifiedAmount)}`);
+    } else {
+      lines.push(STRINGS.EXPORT_WHATSAPP_SUMMARY_SECTION);
+      if (metrics.initialIncome > 0) {
+        lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(metrics.initialIncome)}`);
+      }
+      lines.push(`${STRINGS.EXPORT_WHATSAPP_UNIFIED_TOTAL} ${formatCurrency(totalUnifiedAmount)}`);
+      if (metrics.initialIncome > 0) {
+        const remaining = metrics.initialIncome - totalUnifiedAmount;
+        lines.push(`${STRINGS.EXPORT_WHATSAPP_REMAINING} ${formatCurrency(remaining)}`);
+      }
+      const totalHouseUnified = filtered
+        .filter((e) => e.nature === 'house')
+        .reduce((sum, e) => sum + (e.type === 'real' ? e.amount + (e.savedExtraAmount || 0) : e.amount), 0);
+      if (totalHouseUnified > 0) {
+        lines.push(`🏠 Total destinado a la casa: ${formatCurrency(totalHouseUnified)}`);
+      }
     }
-    lines.push(`${STRINGS.EXPORT_WHATSAPP_UNIFIED_TOTAL} ${formatCurrency(metrics.totalAccounted)}`);
-    if (metrics.initialIncome > 0) {
-      lines.push(`${STRINGS.EXPORT_WHATSAPP_REMAINING} ${formatCurrency(metrics.remainingBalance)}`);
+
+    if (STRINGS.EXPORT_WHATSAPP_FOOTER) {
+      lines.push('');
+      lines.push(STRINGS.EXPORT_WHATSAPP_FOOTER);
     }
-    const totalHouseUnified = filtered
-      .filter((e) => e.nature === 'house')
-      .reduce((sum, e) => sum + (e.type === 'real' ? e.amount + (e.savedExtraAmount || 0) : e.amount), 0);
-    if (totalHouseUnified > 0) {
-      lines.push(`🏠 Total destinado a la casa: ${formatCurrency(totalHouseUnified)}`);
-    }
-    lines.push('');
-    lines.push(STRINGS.EXPORT_WHATSAPP_FOOTER);
 
     return lines.join('\n');
   }
 
-  // Modo Detallado: distingue gastos reales de compras delayeadas
+  // Modo Detallado: distingue gastos reales de compras postergadas
   const realExpenses = filtered.filter((e) => e.type === 'real');
   const delayedExpenses = filtered.filter((e) => e.type === 'delayed');
 
@@ -124,10 +162,10 @@ export function generateWhatsAppReport(
   }
   lines.push('');
 
-  // Sección de Gastos Delayeados
+  // Sección de Gastos Postergados
   lines.push(STRINGS.EXPORT_WHATSAPP_DELAYED_SECTION);
   if (delayedExpenses.length === 0) {
-    lines.push('_(Sin compras delayeadas registradas)_');
+    lines.push('_(Sin compras postergadas registradas)_');
   } else {
     for (const exp of delayedExpenses) {
       const cat = findCategoryById(exp.categoryId);
@@ -151,8 +189,18 @@ export function generateWhatsAppReport(
   if (metrics.initialIncome > 0) {
     lines.push(`${STRINGS.EXPORT_WHATSAPP_REMAINING} ${formatCurrency(metrics.remainingBalance)}`);
   }
-  lines.push('');
-  lines.push(STRINGS.EXPORT_WHATSAPP_FOOTER);
+
+  const totalHouseDetailed = filtered
+    .filter((e) => e.nature === 'house')
+    .reduce((sum, e) => sum + e.amount, 0);
+  if (totalHouseDetailed > 0) {
+    lines.push(`🏠 Total destinado a la casa: ${formatCurrency(totalHouseDetailed)}`);
+  }
+
+  if (STRINGS.EXPORT_WHATSAPP_FOOTER) {
+    lines.push('');
+    lines.push(STRINGS.EXPORT_WHATSAPP_FOOTER);
+  }
 
   return lines.join('\n');
 }
@@ -166,7 +214,12 @@ export function downloadExpensesCSV(
   const period = options?.period ?? null;
   const filtered = expenses
     .filter((e) => !e.linkedExpenseId)
-    .filter((e) => isExpenseMatchingFilter(e, filter, period));
+    .filter((e) => isExpenseMatchingFilter(e, filter, period))
+    .filter((e) => {
+      if (!options?.includedNatures) return true;
+      const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
+      return options.includedNatures[nature] ?? true;
+    });
 
   const escapeCSV = (field: string | number) => {
     const str = String(field);
@@ -177,13 +230,14 @@ export function downloadExpensesCSV(
   };
 
   const headers = unified
-    ? ['Fecha', 'Monto', 'Categoría', 'Concepto / Detalle']
+    ? ['Fecha', 'Monto', 'Categoría', 'Concepto / Detalle', 'Para la Casa']
     : [
         'Fecha',
         'Tipo',
         'Monto',
         'Categoría',
         'Concepto / Detalle',
+        'Para la Casa',
         'Estado de Transferencia',
         'Fecha de Transferencia',
       ];
@@ -205,7 +259,7 @@ export function downloadExpensesCSV(
       return [
         exp.date,
         totalAmount.toFixed(2),
-        catName,
+        options?.showCategory === false ? '' : catName,
         exp.description,
         exp.nature === 'house' ? 'Sí' : 'No',
       ]
@@ -213,7 +267,7 @@ export function downloadExpensesCSV(
         .join(',');
     }
 
-    const tipo = exp.type === 'real' ? 'Gasto Real' : 'Compra Delayeada';
+    const tipo = exp.type === 'real' ? 'Gasto Real' : 'Compra Postergada';
     let transferStatus = 'No aplica';
     if (exp.type === 'delayed') {
       transferStatus = exp.transferredAt ? 'Transferido' : 'Pendiente de transferir';
@@ -247,7 +301,7 @@ export function downloadExpensesCSV(
   const filenameSuffix = unified ? 'unificado' : 'detallado';
   const periodSlug = period ? period.name.toLowerCase().replace(/[^a-z0-9]/g, '_') : filter.type;
   link.setAttribute('href', url);
-  link.setAttribute('download', `delayspend_rendicion_${periodSlug}_${filenameSuffix}_${timestamp}.csv`);
+  link.setAttribute('download', `rendicion_${periodSlug}_${filenameSuffix}_${timestamp}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

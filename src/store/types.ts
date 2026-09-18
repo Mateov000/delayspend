@@ -2,6 +2,8 @@ export type ExpenseType = 'real' | 'delayed' | 'income';
 
 export type ExpenseNature = 'daily' | 'fixed' | 'eventual' | 'house';
 
+export type BudgetPeriodType = 'cycle' | 'monthly' | 'weekly' | 'custom';
+
 export type BuiltInCategoryId =
   | 'food'
   | 'supermarket'

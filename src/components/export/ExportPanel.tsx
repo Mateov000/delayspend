@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { Expense, FinancialMetrics, Period, PeriodFilterState } from '../../store/types';
-import { generateWhatsAppReport, downloadExpensesCSV } from '../../utils/export';
+import { useState, useEffect } from 'react';
+import { Expense, FinancialMetrics, Period, PeriodFilterState, ExpenseNature } from '../../store/types';
+import { generateWhatsAppReport, downloadExpensesCSV, ParentExportConfig } from '../../utils/export';
 import { useToastStore } from '../../store/useToastStore';
 import { STRINGS } from '../../constants/strings';
 import { Button } from '../ui/Button';
 import { BottomSheet } from '../ui/BottomSheet';
-import { Copy, Download, MessageSquare, FileSpreadsheet } from 'lucide-react';
+import { Copy, Download, MessageSquare, FileSpreadsheet, Settings } from 'lucide-react';
 
 interface ExportPanelProps {
   isOpen: boolean;
@@ -14,6 +14,41 @@ interface ExportPanelProps {
   filter: PeriodFilterState;
   metrics: FinancialMetrics;
   period?: Period | null;
+}
+
+const STORAGE_KEY = 'delayspend_parent_export_config_v1';
+
+const DEFAULT_CONFIG: ParentExportConfig = {
+  showCategory: true,
+  showNature: true,
+  includedNatures: {
+    daily: true,
+    fixed: true,
+    eventual: true,
+    house: true,
+  },
+  summaryMode: 'full',
+};
+
+function loadStoredConfig(): ParentExportConfig {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_CONFIG;
+    const parsed = JSON.parse(raw);
+    return {
+      showCategory: typeof parsed.showCategory === 'boolean' ? parsed.showCategory : true,
+      showNature: typeof parsed.showNature === 'boolean' ? parsed.showNature : true,
+      includedNatures: {
+        daily: parsed.includedNatures?.daily ?? true,
+        fixed: parsed.includedNatures?.fixed ?? true,
+        eventual: parsed.includedNatures?.eventual ?? true,
+        house: parsed.includedNatures?.house ?? true,
+      },
+      summaryMode: parsed.summaryMode === 'total_only' ? 'total_only' : 'full',
+    };
+  } catch {
+    return DEFAULT_CONFIG;
+  }
 }
 
 export function ExportPanel({
@@ -28,9 +63,40 @@ export function ExportPanel({
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'csv'>('whatsapp');
   const [isUnified, setIsUnified] = useState(true);
 
+  // Configuración del reporte para padres (persistida en localStorage)
+  const [config, setConfig] = useState<ParentExportConfig>(loadStoredConfig);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Guardar configuración automáticamente cuando cambie
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    } catch {
+      // Ignorar errores de quota de localStorage
+    }
+  }, [config]);
+
+  const updateConfig = (patch: Partial<ParentExportConfig>) => {
+    setConfig((prev) => ({ ...prev, ...patch }));
+  };
+
+  const toggleNature = (nature: ExpenseNature) => {
+    setConfig((prev) => {
+      const current = prev.includedNatures ?? DEFAULT_CONFIG.includedNatures!;
+      const updated = { ...current, [nature]: !current[nature] };
+      // Asegurar que al menos una naturaleza esté activa
+      const hasAny = Object.values(updated).some(Boolean);
+      return {
+        ...prev,
+        includedNatures: hasAny ? updated : current,
+      };
+    });
+  };
+
   const reportText = generateWhatsAppReport(expenses, filter, metrics, {
     unified: isUnified,
     period,
+    ...config,
   });
 
   const handleCopyWhatsApp = async () => {
@@ -38,7 +104,6 @@ export function ExportPanel({
       await navigator.clipboard.writeText(reportText);
       showToast(STRINGS.TOAST_COPIED_TO_CLIPBOARD, 'success');
     } catch {
-      // Fallback para entornos donde clipboard API falle
       const textarea = document.createElement('textarea');
       textarea.value = reportText;
       document.body.appendChild(textarea);
@@ -53,46 +118,189 @@ export function ExportPanel({
     downloadExpensesCSV(expenses, filter, {
       unified: isUnified,
       period,
+      ...config,
     });
     showToast(STRINGS.TOAST_CSV_DOWNLOADED, 'success');
   };
 
   return (
-    <BottomSheet
-      isOpen={isOpen}
-      onClose={onClose}
-      title={STRINGS.EXPORT_TITLE}
-    >
+    <BottomSheet isOpen={isOpen} onClose={onClose} title={STRINGS.EXPORT_TITLE}>
       <div className="flex flex-col gap-4">
-        <p className="text-xs text-slate-500">
-          {STRINGS.EXPORT_SUBTITLE}
-        </p>
+        <p className="text-xs text-slate-500">{STRINGS.EXPORT_SUBTITLE}</p>
 
-        {/* Toggle para Rendición Unificada (para padres) */}
-        <div className="flex items-center justify-between p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl">
-          <div className="flex flex-col pr-3">
-            <span className="text-xs font-bold text-slate-800">
-              {STRINGS.EXPORT_UNIFY_LABEL}
-            </span>
-            <span className="text-[11px] text-slate-500 leading-snug mt-0.5">
-              {STRINGS.EXPORT_UNIFY_DESC}
-            </span>
+        {/* Bloque: Toggle de Rendición Unificada + Tuerquita ⚙️ */}
+        <div className="flex flex-col gap-2 p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col pr-2">
+              <span className="text-xs font-bold text-slate-800">
+                {STRINGS.EXPORT_UNIFY_LABEL}
+              </span>
+              <span className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                {STRINGS.EXPORT_UNIFY_DESC}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Botón Tuerquita de Configuración */}
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                title="Configurar campos del reporte"
+                className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                  isSettingsOpen
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                    : 'bg-white text-slate-600 hover:text-indigo-600 border-indigo-200/80 hover:bg-indigo-50'
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+
+              {/* Switch Unificado */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isUnified}
+                onClick={() => setIsUnified(!isUnified)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  isUnified ? 'bg-indigo-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    isUnified ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isUnified}
-            onClick={() => setIsUnified(!isUnified)}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-              isUnified ? 'bg-indigo-600' : 'bg-slate-300'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                isUnified ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
+
+          {/* Menú Desplegable de Configuración de Opciones del Reporte */}
+          {isSettingsOpen && (
+            <div className="pt-3 mt-1 border-t border-indigo-100/90 flex flex-col gap-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                  Opciones de personalización
+                </span>
+                <span className="text-[10px] text-indigo-600 font-semibold">
+                  Se guardan automáticamente
+                </span>
+              </div>
+
+              {/* 1. Casilla: Mostrar u Ocultar Categoría */}
+              <label className="flex items-center gap-2.5 cursor-pointer select-none bg-white p-2.5 rounded-xl border border-indigo-100 hover:border-indigo-200 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={config.showCategory ?? true}
+                  onChange={(e) => updateConfig({ showCategory: e.target.checked })}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-slate-800 text-xs">
+                    Mostrar categoría en cada gasto
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    Aplica la censura de privacidad configurada (ej: Estética aparece como Otros Gastos).
+                  </span>
+                </div>
+              </label>
+
+              {/* 2. Casilla: Mostrar u Ocultar Naturaleza */}
+              <label className="flex items-center gap-2.5 cursor-pointer select-none bg-white p-2.5 rounded-xl border border-indigo-100 hover:border-indigo-200 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={config.showNature ?? true}
+                  onChange={(e) => updateConfig({ showNature: e.target.checked })}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-slate-800 text-xs">
+                    Mostrar etiqueta de naturaleza
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    Indica si el gasto es para la casa, fijo, eventual o cotidiano.
+                  </span>
+                </div>
+              </label>
+
+              {/* 3. Naturalezas a incluir en el reporte */}
+              <div className="flex flex-col gap-1.5 bg-white p-2.5 rounded-xl border border-indigo-100">
+                <span className="font-semibold text-slate-800 text-xs">
+                  Naturalezas a incluir en el reporte:
+                </span>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={config.includedNatures?.daily ?? true}
+                      onChange={() => toggleNature('daily')}
+                      className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                    />
+                    <span>🛒 Cotidianos</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={config.includedNatures?.fixed ?? true}
+                      onChange={() => toggleNature('fixed')}
+                      className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                    />
+                    <span>🔄 Fijos / Recurrentes</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={config.includedNatures?.eventual ?? true}
+                      onChange={() => toggleNature('eventual')}
+                      className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                    />
+                    <span>⚡ Eventuales</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={config.includedNatures?.house ?? true}
+                      onChange={() => toggleNature('house')}
+                      className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                    />
+                    <span>🏠 Para la casa</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 4. Modo de Resumen Financiero */}
+              <div className="flex flex-col gap-1.5 bg-white p-2.5 rounded-xl border border-indigo-100">
+                <span className="font-semibold text-slate-800 text-xs">
+                  Resumen financiero al final:
+                </span>
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="summaryMode"
+                      checked={config.summaryMode !== 'total_only'}
+                      onChange={() => updateConfig({ summaryMode: 'full' })}
+                      className="w-3.5 h-3.5 text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                    />
+                    <span>Detalle completo (ingresos, total a rendir y saldo remanente)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="summaryMode"
+                      checked={config.summaryMode === 'total_only'}
+                      onChange={() => updateConfig({ summaryMode: 'total_only' })}
+                      className="w-3.5 h-3.5 text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                    />
+                    <span>Solo decir el total final a rendir</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Selector de Pestañas */}
@@ -158,10 +366,10 @@ export function ExportPanel({
                   ? 'Formato unificado con codificación UTF-8 BOM'
                   : 'Formato estándar con codificación UTF-8 BOM'}
               </span>
-              <p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
                 {isUnified
                   ? STRINGS.EXPORT_CSV_UNIFIED_DESC
-                  : 'Este archivo incluye todas las columnas (Fecha, Tipo, Monto, Categoría, Detalle y Estado de Transferencia) preparadas para abrir directamente en Microsoft Excel o Google Sheets sin errores de caracteres.'}
+                  : 'Este archivo incluye todas las columnas preparadas para abrir directamente en Microsoft Excel o Google Sheets sin errores de caracteres.'}
               </p>
               <span className="font-semibold text-indigo-700">
                 Total de filas a exportar: {expenses.length}
@@ -170,11 +378,11 @@ export function ExportPanel({
 
             <Button
               type="button"
-              variant="primary"
+              variant="secondary"
               size="lg"
               fullWidth
               onClick={handleDownloadCSV}
-              className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white flex items-center justify-center gap-2"
+              className="flex items-center justify-center gap-2"
             >
               <Download className="w-4 h-4" />
               <span>{STRINGS.EXPORT_CSV_DOWNLOAD_BUTTON}</span>

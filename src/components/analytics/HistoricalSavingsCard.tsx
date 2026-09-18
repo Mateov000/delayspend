@@ -22,8 +22,8 @@ export function HistoricalSavingsCard({ savings }: HistoricalSavingsCardProps) {
           </p>
           <p className="text-[11px] text-emerald-200/70">
             {savings.closedPeriodsCount > 0
-              ? `A lo largo de ${savings.closedPeriodsCount} período${savings.closedPeriodsCount !== 1 ? 's' : ''} cerrado${savings.closedPeriodsCount !== 1 ? 's' : ''}`
-              : 'Historial completo'}
+              ? `Consolidado de ${savings.closedPeriodsCount} ciclo${savings.closedPeriodsCount !== 1 ? 's' : ''} cerrado${savings.closedPeriodsCount !== 1 ? 's' : ''}`
+              : 'Se computa al concluir cada ciclo'}
           </p>
         </div>
       </div>
@@ -35,7 +35,7 @@ export function HistoricalSavingsCard({ savings }: HistoricalSavingsCardProps) {
         </span>
         {!hasData && (
           <p className="text-emerald-300/70 text-xs mt-1">
-            Todavía no hay ahorro acumulado. ¡Empezá a delayear!
+            Al cerrar tu primer período, acá verás el dinero que lograste ahorrar.
           </p>
         )}
       </div>
@@ -48,10 +48,10 @@ export function HistoricalSavingsCard({ savings }: HistoricalSavingsCardProps) {
             <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0" />
             <div>
               <span className="text-xs font-semibold text-emerald-100 block leading-tight">
-                Ahorro DelaySpend
+                Ahorro por postergaciones
               </span>
               <span className="text-[10px] text-emerald-300/70">
-                Compras postergadas + opciones más baratas
+                Compras evitadas + opciones más baratas en ciclos cerrados
               </span>
             </div>
           </div>
@@ -69,7 +69,7 @@ export function HistoricalSavingsCard({ savings }: HistoricalSavingsCardProps) {
                 Sobrante de ingresos
               </span>
               <span className="text-[10px] text-emerald-300/70">
-                Saldo positivo al cerrar períodos
+                Saldo positivo al cerrar ciclos
               </span>
             </div>
           </div>
@@ -81,4 +81,3 @@ export function HistoricalSavingsCard({ savings }: HistoricalSavingsCardProps) {
     </div>
   );
 }
-
