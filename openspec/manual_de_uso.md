@@ -217,9 +217,9 @@ El ahorro acumulado se compone de:
    - **Desglose interactivo:** Al tocar la tarjeta de *Ahorro DelaySpend*, se despliega un acordeón interactivo que detalla:
      - 🛡️ **Gasto no consumado directamente:** Compras impulsivas que frenaste y postergaste.
      - ✨ **Ahorro por versión más barata:** Sobreprecio evitado al optar por alternativas más económicas (`savedExtraAmount`).
-2. **Sobrante de ingresos (Balance Neto):** Suma del balance neto de ingresos menos gastos de cada ciclo cerrado (por ejemplo, si en un ciclo sobraron $4.800 y en el siguiente faltaron $1.700, el sobrante neto refleja fielmente $3.100):
-   $$\text{Sobrante de Ciclo} = \text{Ingreso Efectivo} - \text{Gastos Reales}$$
-   $$\text{Ahorro Histórico Total} = \text{Ahorro DelaySpend} + \text{Sobrante de Ingresos}$$
+2. **Sobrante de ingresos (Balance Neto):** Suma del dinero que sobró del presupuesto asignado tras rendir cuentas a los padres (es decir, lo que hubiera sobrado si las compras postergadas fueran reales: $\text{Ingreso} - \text{Gasto Real} - \text{DelaySpend}$). Si en un ciclo sobraron $4.800 y en el siguiente faltaron $1.700, el sobrante neto consolidado refleja fielmente $3.100:
+   $$\text{Sobrante de Ciclo} = \text{Ingreso Efectivo} - \text{Gastos Reales} - \text{DelaySpend}$$
+   $$\text{Ahorro Histórico Total} = \text{Ahorro DelaySpend} + \text{Sobrante de Ingresos} = \text{Ingreso Efectivo} - \text{Gastos Reales}$$
 
 ### 7.2 Selector Interactivo de Naturalezas en los Gráficos
 En Analíticas, arriba del gráfico de dona de categorías, tenés 4 casillas interactivas:
@@ -256,6 +256,11 @@ Al lado del interruptor de rendición unificada hay un botón de tuerquita ⚙�
    - Si está marcada: incluye la categoría entre corchetes (ej: `• 15/09: Almuerzo - $6.500 [Comida]`).
    - Si una categoría está enmascarada por privacidad, se muestra como `[Otros Gastos]`.
    - Si está desmarcada: muestra solo fecha, concepto y monto (ej: `• 15/09: Almuerzo - $6.500`).
+2. **Casilla "Mostrar etiqueta de naturaleza":**
+   - Agrega o quita las marcas: `[🏠 Para la casa]`, `[🔄 Fijo]`, `[⚡ Eventual]`, `[🛒 Cotidiano]`.
+3. **Casillas individuales de rótulos de naturalezas a mostrar:**
+   - Podés elegir para qué naturalezas querés que figure el rótulo al lado del gasto: Cotidianos, Fijos, Eventuales o Para la casa.
+   - **Nota contable:** Todos los gastos del período se incluyen siempre en el reporte para que la rendición cuadre con exactitud matemática; las casillas solo determinan si el rótulo descriptivo aparece o se oculta al lado de cada ítem.
 2. **Recuadro "Mostrar etiqueta de naturaleza":**
    - **Interruptor principal:** Habilita o deshabilita los rótulos de naturaleza en el reporte.
    - **Etiquetas de naturaleza a mostrar (dentro del mismo recuadro):** Podés elegir para qué naturalezas querés que figure el rótulo al lado del gasto: 🛒 Cotidianos, 🔄 Fijos, ⚡ Eventuales o 🏠 Para la casa.

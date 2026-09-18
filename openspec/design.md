@@ -174,6 +174,8 @@ export interface HistoricalSavings {
 
 export interface ParentExportConfig {
   showCategory?: boolean;       // Incluir o no la categoría en cada ítem
+  showNature?: boolean;         // Incluir o no rótulos de naturaleza en los gastos
+  includedNatures?: Record<ExpenseNature, boolean>; // Qué rótulos de naturaleza mostrar ([🛒 Cotidiano], [🔄 Fijo], etc.). Todos los gastos se exportan siempre.
   showNature?: boolean;         // Interruptor maestro: mostrar u ocultar etiquetas de naturaleza
   showNatureTags?: Record<ExpenseNature, boolean>; // De qué naturalezas mostrar etiqueta. Aunque se desmarque, el gasto aparece igual.
   includedNatures?: Record<ExpenseNature, boolean>; // Qué naturalezas de gasto se incluyen en el reporte. Si se desmarca, se excluye el gasto y su monto.
@@ -848,8 +850,9 @@ create policy "Users can manage their own periods"
 ### 4.4 Ahorro Acumulado Histórico (Estrictamente Períodos Cerrados)
 Para garantizar veracidad contable, **solo se auditan períodos con `endDate !== null` y `deletedAt === null`**:
 $$\text{Ahorro DelaySpend} = \sum_{p \in \text{Cerrados}} \left( \sum_{e \in p, e.\text{type}=\text{'delayed'}} e.\text{amount} + \sum_{e \in p, e.\text{type}=\text{'real'}} e.\text{savedExtraAmount} \right)$$
-$$\text{Sobrante Ingresos (Neto)} = \sum_{p \in \text{Cerrados}} \left( \text{IngresoEfectivo}_p - \text{GastoReal}_p \right)$$
-$$\text{Ahorro Total Consolidado} = \text{Ahorro DelaySpend} + \text{Sobrante Ingresos}$$
+$$\text{Sobrante Ingresos (Neto)} = \sum_{p \in \text{Cerrados}} \left( \text{IngresoEfectivo}_p - \text{GastoReal}_p - \text{DelaySpend}_p \right)$$
+$$\text{Ahorro Total Consolidado} = \text{Ahorro DelaySpend} + \text{Sobrante Ingresos} = \sum_{p \in \text{Cerrados}} \left( \text{IngresoEfectivo}_p - \text{GastoReal}_p \right)$$
+*Nota:* El Sobrante de Ingresos representa el remanente presupuestario que ven los padres en la rendición de cuentas si las compras postergadas se hubiesen consumado. Al sumarse con el Ahorro DelaySpend, el ahorro total refleja fielmente el dinero real no gastado sin duplicar ningún concepto.
 
 ### 4.5 Asignación Diaria Sugerida en Metas
 Para metas semanales o mensuales con límite fijado $L$:
@@ -892,6 +895,8 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 3. **Aislamiento de Compras de la Casa:** Si el gasto tiene `nature === 'house'`, se le anexa el tag `[🏠 Para la casa]` y al pie del reporte se emite una línea con el total destinado a la familia.
 4. **Configuración Dinámica (Tuerquita ⚙️):**
    - Switch de categoría: `showCategory` (booleano).
+   - Switch de naturaleza: `showNature` (booleano).
+   - Rótulos de naturalezas visibles: `includedNatures` (diccionario por `ExpenseNature`). Importante: las casillas determinan si se muestra el rótulo al lado de cada gasto; todos los movimientos del período continúan figurando en el reporte para garantizar consistencia contable.
    - Recuadro "Mostrar etiqueta de naturaleza":
      - Switch maestro: `showNature` (booleano).
      - Sub-opciones de etiquetas: `showNatureTags` (diccionario por `ExpenseNature`). Elige de qué naturalezas mostrar el rótulo (`[🛒 Cotidiano]`, `[🔄 Fijo]`, `[⚡ Eventual]`, `[🏠 Para la casa]`). Si una etiqueta se desmarca, el gasto aparece igual en el reporte.

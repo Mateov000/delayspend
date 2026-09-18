@@ -138,7 +138,7 @@ export function HistoricalSavingsCard({ savings }: HistoricalSavingsCardProps) {
                 Sobrante de ingresos
               </span>
               <span className="text-[10px] text-emerald-300/70">
-                Saldo neto no gastado al cerrar ciclos
+                Remanente de ingresos tras rendir cuentas
               </span>
             </div>
           </div>
