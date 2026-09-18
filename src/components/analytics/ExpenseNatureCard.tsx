@@ -23,7 +23,7 @@ export function ExpenseNatureCard({ expenses }: ExpenseNatureCardProps) {
     const houseItems: Expense[] = [];
 
     for (const e of expenses) {
-      if (e.type === 'income') continue;
+      if (e.type === 'income' || e.isFictitious) continue;
 
       if (e.type === 'real') {
         const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');

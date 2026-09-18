@@ -4,6 +4,7 @@ import { Header } from './components/layout/Header';
 import { BottomTabBar, TabId } from './components/layout/BottomTabBar';
 import { PeriodFilter } from './components/dashboard/PeriodFilter';
 import { SummaryCards } from './components/dashboard/SummaryCards';
+import { ViceBalanceCard } from './components/dashboard/ViceBalanceCard';
 import { ExpenseHistory } from './components/history/ExpenseHistory';
 import { FloatingActionButton } from './components/form/FloatingActionButton';
 import { AddExpenseSheet } from './components/form/AddExpenseSheet';
@@ -24,7 +25,7 @@ import { useToastStore } from './store/useToastStore';
 import { calculateMetrics } from './utils/metrics';
 import { calculatePeriodGoalProgress } from './utils/budgetMetrics';
 import { isExpenseMatchingFilter } from './utils/date';
-import { Expense, Period } from './store/types';
+import { Expense, ExpenseInput, Period } from './store/types';
 import { STRINGS } from './constants/strings';
 
 export default function App() {
@@ -87,6 +88,7 @@ export default function App() {
   const [isConfirmUndoCutoffOpen, setIsConfirmUndoCutoffOpen] = useState(false);
   const [deletingPeriodId, setDeletingPeriodId] = useState<string | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [addPreset, setAddPreset] = useState<Partial<ExpenseInput> | null>(null);
   const [cutoffCandidateExpense, setCutoffCandidateExpense] = useState<Expense | null>(null);
 
   // Estados para diálogos de confirmación accesibles (sin window.confirm)
@@ -106,19 +108,22 @@ export default function App() {
   const periodGoalProgress = calculatePeriodGoalProgress(expenses, activePeriod);
 
   // Manejo de altas y edición de gastos
-  const handleOpenAdd = () => {
+  const handleOpenAdd = (preset?: Partial<ExpenseInput> | null) => {
     setEditingExpense(null);
+    setAddPreset(preset ?? null);
     setIsAddSheetOpen(true);
   };
 
   const handleEdit = (expense: Expense) => {
     setEditingExpense(expense);
+    setAddPreset(null);
     setIsAddSheetOpen(true);
   };
 
   const handleCloseSheet = () => {
     setIsAddSheetOpen(false);
     setEditingExpense(null);
+    setAddPreset(null);
   };
 
   // Manejo de eliminación de gasto con ConfirmDialog
@@ -216,6 +221,19 @@ export default function App() {
               dailyPaceAverage={periodGoalProgress?.dailyPaceAverage}
             />
 
+            {/* Tarjeta de Control y Balance Ficticio - Vicios */}
+            <div className="mt-3.5">
+              <ViceBalanceCard
+                expenses={filteredExpenses}
+                onOpenCreateFictitious={() =>
+                  handleOpenAdd({ isFictitious: true, type: 'real', categoryId: 'food' })
+                }
+                onOpenCreateVice={() =>
+                  handleOpenAdd({ categoryId: 'vices', type: 'real' })
+                }
+              />
+            </div>
+
             {/* Historial Agrupado por Fecha */}
             <ExpenseHistory
               expenses={filteredExpenses}
@@ -251,7 +269,7 @@ export default function App() {
       <BottomTabBar activeTab={activeTab} onChange={setActiveTab} />
 
       {/* Botón flotante accesible con una mano en 375px */}
-      <FloatingActionButton onClick={handleOpenAdd} />
+      <FloatingActionButton onClick={() => handleOpenAdd()} />
 
       {/* Modal BottomSheet para alta y edición de gastos */}
       <AddExpenseSheet
@@ -260,6 +278,7 @@ export default function App() {
         editingExpense={editingExpense}
         defaultDate={defaultExpenseDate}
         defaultPeriodId={activePeriod?.id ?? null}
+        initialPreset={addPreset}
       />
 
       {/* Panel de Rendición y Exportación para WhatsApp y CSV */}

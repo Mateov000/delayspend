@@ -37,6 +37,8 @@ interface DbExpenseRow {
   installment_total?: number | null;
   is_recurring?: boolean | null;
   nature?: string | null;
+  is_fictitious?: boolean | null;
+  subcategory?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -84,6 +86,8 @@ function mapRowToExpense(row: DbExpenseRow): Expense {
           ? (row.nature as Expense['nature'])
           : (row.is_recurring ? 'fixed' : 'daily'))
       : undefined,
+    subcategory: (row.subcategory && row.subcategory.trim()) || undefined,
+    isFictitious: Boolean(row.is_fictitious) || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -122,6 +126,8 @@ function mapExpenseToRow(expense: Expense, userId: string): Omit<DbExpenseRow, '
     installment_total: expense.installmentTotal ?? null,
     is_recurring: expense.isRecurring ?? false,
     nature: expense.type === 'real' ? (expense.nature ?? (expense.isRecurring ? 'fixed' : 'daily')) : null,
+    is_fictitious: expense.isFictitious ?? false,
+    subcategory: expense.subcategory ?? null,
     created_at: expense.createdAt,
     updated_at: expense.updatedAt,
   };

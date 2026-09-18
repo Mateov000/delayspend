@@ -89,7 +89,7 @@ export function AnalyticsView({
   // Gastos del período seleccionado para el donut y naturaleza
   // Gastos del período seleccionado
   const filteredExpenses = useMemo(
-    () => expenses.filter((e) => isExpenseMatchingFilter(e, activeFilter, activePeriod)),
+    () => expenses.filter((e) => !e.isFictitious && isExpenseMatchingFilter(e, activeFilter, activePeriod)),
     [expenses, activeFilter, activePeriod]
   );
 

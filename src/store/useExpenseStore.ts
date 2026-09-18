@@ -86,6 +86,12 @@ function sanitizeExpense(raw: unknown): Expense | null {
   }
   const isRecurring = item.type === 'real' ? (nature === 'fixed' || Boolean(item.isRecurring)) : undefined;
 
+  const subcategory =
+    typeof item.subcategory === 'string' && item.subcategory.trim().length > 0
+      ? item.subcategory.trim()
+      : undefined;
+  const isFictitious = Boolean(item.isFictitious);
+
   return {
     id: item.id,
     type: item.type as ExpenseType,
@@ -104,6 +110,8 @@ function sanitizeExpense(raw: unknown): Expense | null {
     installmentTotal,
     isRecurring,
     nature,
+    subcategory,
+    isFictitious: isFictitious || undefined,
   };
 }
 
@@ -147,6 +155,8 @@ export const useExpenseStore = create<ExpenseState>()(
           installmentTotal: hasInstallments ? input.installmentTotal : null,
           isRecurring: input.type === 'real' && (input.nature === 'fixed' || input.isRecurring) ? true : undefined,
           nature: input.type === 'real' ? (input.nature ?? (input.isRecurring ? 'fixed' : 'daily')) : undefined,
+          subcategory: input.categoryId === 'vices' && input.subcategory ? input.subcategory.trim() : undefined,
+          isFictitious: Boolean(input.isFictitious) || undefined,
         };
 
         // Generar cuotas futuras (delayed) si es un pago en cuotas
@@ -241,6 +251,16 @@ export const useExpenseStore = create<ExpenseState>()(
                 ? (updatedNature === 'fixed' || ('isRecurring' in input ? Boolean(input.isRecurring) : expense.isRecurring) ? true : undefined)
                 : undefined;
 
+            const updatedSubcategory =
+              'subcategory' in input
+                ? (input.subcategory ? input.subcategory.trim() : undefined)
+                : expense.subcategory;
+
+            const updatedIsFictitious =
+              'isFictitious' in input
+                ? (Boolean(input.isFictitious) || undefined)
+                : expense.isFictitious;
+
             updatedItem = {
               ...expense,
               type: updatedType,
@@ -260,6 +280,8 @@ export const useExpenseStore = create<ExpenseState>()(
               installmentTotal: updatedInstallmentTotal,
               isRecurring: updatedIsRecurring,
               nature: updatedNature,
+              subcategory: updatedCat === 'vices' ? updatedSubcategory : undefined,
+              isFictitious: updatedIsFictitious,
               updatedAt: now,
             };
 

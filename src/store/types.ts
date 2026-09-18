@@ -15,6 +15,7 @@ export type BuiltInCategoryId =
   | 'health'
   | 'aesthetics'
   | 'education'
+  | 'vices'
   | 'other';
 
 export type CategoryId = BuiltInCategoryId | (string & {});
@@ -48,6 +49,8 @@ export interface Expense {
   installmentTotal?: number | null; // Total de cuotas del grupo
   isRecurring?: boolean; // Legacy / compatibilidad
   nature?: ExpenseNature; // 'daily': cotidiano | 'fixed': fijo | 'eventual': esporádico | 'house': para la casa
+  subcategory?: string; // Subcategoría opcional (ej: Puchos para categoría Vicios)
+  isFictitious?: boolean; // Gasto ficticio (máscara para padres, no cuenta en métricas personales)
 }
 
 export interface Period {
@@ -100,4 +103,6 @@ export interface ExpenseInput {
   installmentTotal?: number | null;
   isRecurring?: boolean;
   nature?: ExpenseNature;
+  subcategory?: string;
+  isFictitious?: boolean;
 }

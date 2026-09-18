@@ -72,12 +72,26 @@ export function ExpenseListItem({
               </span>
             ) : (
               <>
-                <span className="text-[11px] font-medium text-slate-400">{category.name}</span>
+                <span className="text-[11px] font-medium text-slate-400">
+                  {expense.categoryId === 'vices' && expense.subcategory
+                    ? `Vicios · ${expense.subcategory}`
+                    : category.name}
+                </span>
                 <span className="text-slate-300">•</span>
                 <Badge variant={isReal ? 'real' : 'delayed'} size="sm">
                   {isReal ? STRINGS.HISTORY_BADGE_REAL : STRINGS.HISTORY_BADGE_DELAYED}
                 </Badge>
               </>
+            )}
+
+            {/* Gasto ficticio (máscara para padres) */}
+            {expense.isFictitious && (
+              <span
+                className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-2xs"
+                title="Gasto ficticio para justificar vicios ante tus padres. No cuenta en tus estadísticas personales."
+              >
+                <span>🎭 Ficticio (Máscara)</span>
+              </span>
             )}
 
             {/* Cuota badge */}
@@ -176,6 +190,8 @@ export function ExpenseListItem({
             className={`text-base font-extrabold tracking-tight ${
               isIncome
                 ? 'text-emerald-700'
+                : expense.isFictitious
+                ? 'text-purple-700 font-bold'
                 : isReal
                 ? 'text-slate-900 font-bold'
                 : 'text-emerald-700 font-extrabold'
@@ -184,6 +200,11 @@ export function ExpenseListItem({
             {isIncome ? '+' : isReal ? '-' : '+'}
             {formatCurrency(expense.amount)}
           </span>
+          {expense.isFictitious && (
+            <span className="text-[9px] text-purple-600 font-medium">
+              Solo para padres
+            </span>
+          )}
           {hasCheaperSavings && (
             <span className="text-[10px] text-emerald-600 font-bold">
               +{formatCurrency(expense.savedExtraAmount!)} ahorro

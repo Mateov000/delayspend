@@ -82,6 +82,14 @@ export const CATEGORIES: readonly Category[] = [
     textColor: 'text-emerald-800',
   },
   {
+    id: 'vices',
+    name: 'Vicios',
+    icon: 'Flame',
+    color: 'bg-amber-100 text-amber-900 border-amber-300',
+    badgeBg: 'bg-amber-100',
+    textColor: 'text-amber-900',
+  },
+  {
     id: 'other',
     name: 'Otros Gastos',
     icon: 'Sparkles',

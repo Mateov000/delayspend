@@ -46,7 +46,7 @@ export function calculateHistoricalSavings(
 
   for (const period of closedPeriods) {
     const periodExpenses = expenses
-      .filter((e) => !e.linkedExpenseId)
+      .filter((e) => !e.linkedExpenseId && !e.isFictitious)
       .filter((e) => isExpenseInPeriod(e, period));
 
     let periodReal = 0;

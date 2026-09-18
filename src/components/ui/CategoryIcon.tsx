@@ -17,6 +17,7 @@ import {
   Gift,
   Coffee,
   Smile,
+  Flame,
   LucideProps,
 } from 'lucide-react';
 
@@ -60,6 +61,8 @@ export function CategoryIcon({ name, ...props }: CategoryIconProps) {
       return <Smile {...props} />;
     case 'GraduationCap':
       return <GraduationCap {...props} />;
+    case 'Flame':
+      return <Flame {...props} />;
     case 'Sparkles':
     default:
       return <Sparkles {...props} />;

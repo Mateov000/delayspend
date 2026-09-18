@@ -55,6 +55,14 @@ export function generateWhatsAppReport(
     .filter((e) => !e.linkedExpenseId)
     .filter((e) => isExpenseMatchingFilter(e, filter, period))
     .filter((e) => {
+      // Regla de privacidad de Vicios y Gastos Ficticios:
+      if (unified) {
+        // En reporte para padres: NUNCA mostrar Vicios (0% de probabilidad)
+        if (e.categoryId === 'vices') return false;
+      } else {
+        // En exportación personal: los gastos ficticios son máscaras y se excluyen
+        if (e.isFictitious) return false;
+      }
       if (!options?.includedNatures) return true;
       const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
       return options.includedNatures[nature] ?? true;
@@ -222,6 +230,14 @@ export function downloadExpensesCSV(
     .filter((e) => !e.linkedExpenseId)
     .filter((e) => isExpenseMatchingFilter(e, filter, period))
     .filter((e) => {
+      // Regla de privacidad de Vicios y Gastos Ficticios:
+      if (unified) {
+        // En reporte para padres: NUNCA mostrar Vicios (0% de probabilidad)
+        if (e.categoryId === 'vices') return false;
+      } else {
+        // En exportación personal: los gastos ficticios son máscaras y se excluyen
+        if (e.isFictitious) return false;
+      }
       if (!options?.includedNatures) return true;
       const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
       return options.includedNatures[nature] ?? true;

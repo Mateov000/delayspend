@@ -46,10 +46,13 @@ export interface CategoryState {
   customCategories: Category[];
   /** IDs de categorías que al exportar la rendición para padres se agrupan bajo "Otros Gastos" */
   parentMaskedCategoryIds: string[];
+  /** Subcategorías disponibles para la categoría Vicios (ej: Puchos, Alcohol, etc.) */
+  viceSubcategories: string[];
   addCustomCategory: (name: string, icon?: string, paletteIndex?: number) => Category;
   removeCustomCategory: (id: string) => void;
   toggleParentMaskedCategory: (categoryId: string) => void;
   isParentMasked: (categoryId: string) => boolean;
+  addViceSubcategory: (name: string) => void;
 }
 
 export const useCategoryStore = create<CategoryState>()(
@@ -58,6 +61,22 @@ export const useCategoryStore = create<CategoryState>()(
       customCategories: [],
       // 'aesthetics' queda enmascarada automáticamente por defecto
       parentMaskedCategoryIds: ['aesthetics'],
+      // Subcategorías iniciales de Vicios
+      viceSubcategories: ['Puchos'],
+
+      addViceSubcategory: (name: string) => {
+        const cleanName = name.trim();
+        if (!cleanName) return;
+        set((state) => {
+          const current = state.viceSubcategories || ['Puchos'];
+          if (current.some((s) => s.toLowerCase() === cleanName.toLowerCase())) {
+            return state;
+          }
+          return {
+            viceSubcategories: [...current, cleanName],
+          };
+        });
+      },
 
       addCustomCategory: (name: string, icon = 'Sparkles', paletteIndex = 0) => {
         const cleanName = name.trim();

@@ -24,6 +24,8 @@ import {
   Zap,
   ShoppingBag,
   Home,
+  Plus,
+  Check,
 } from 'lucide-react';
 
 interface ExpenseFormProps {
@@ -44,8 +46,34 @@ export function ExpenseForm({
   const { getBudgetForCategory } = useBudgetStore();
 
   const todayStr = new Date().toISOString().split('T')[0] ?? '';
-  const { customCategories } = useCategoryStore();
+  const { customCategories, viceSubcategories, addViceSubcategory } = useCategoryStore();
   const allCategories = getAllCategories(customCategories);
+
+  // Estado de gasto ficticio (máscara para padres)
+  const [isFictitious, setIsFictitious] = useState<boolean>(
+    Boolean(initialValues?.isFictitious)
+  );
+
+  // Subcategorías dinámicas para categoría Vicios
+  const currentSubcats = viceSubcategories && viceSubcategories.length > 0 ? viceSubcategories : ['Puchos'];
+  const [subcategory, setSubcategory] = useState<string>(
+    initialValues?.subcategory ?? (initialValues?.categoryId === 'vices' ? currentSubcats[0]! : 'Puchos')
+  );
+  const [isAddingSubcategory, setIsAddingSubcategory] = useState<boolean>(false);
+  const [newSubcatInput, setNewSubcatInput] = useState<string>('');
+
+  const handleAddSubcategory = () => {
+    const clean = newSubcatInput.trim();
+    if (!clean) {
+      setIsAddingSubcategory(false);
+      return;
+    }
+    addViceSubcategory(clean);
+    setSubcategory(clean);
+    setNewSubcatInput('');
+    setIsAddingSubcategory(false);
+    showToast(`Subcategoría "${clean}" agregada.`, 'success');
+  };
 
   // Estado principal del formulario
   const [type, setType] = useState<ExpenseType>(initialValues?.type ?? 'real');
@@ -88,14 +116,14 @@ export function ExpenseForm({
     new Set(expenses.flatMap((e) => e.tags ?? []))
   ).sort();
 
-  // Control de presupuesto por categoría (solo aplica a gastos reales)
+  // Control de presupuesto por categoría (solo aplica a gastos reales legítimos)
   const categoryBudget = getBudgetForCategory(categoryId);
   const currentCategorySpent = getSpentForCategory(expenses, categoryId);
   const parsedAmount = parseFloat(amountStr.replace(',', '.')) || 0;
   const previousAmount = isEditing && initialValues ? initialValues.amount : 0;
   const projectedCategorySpent = currentCategorySpent - previousAmount + parsedAmount;
   const isBudgetExceeded =
-    type === 'real' && categoryBudget > 0 && projectedCategorySpent > categoryBudget;
+    !isFictitious && type === 'real' && categoryBudget > 0 && projectedCategorySpent > categoryBudget;
 
   const handleAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
@@ -133,19 +161,21 @@ export function ExpenseForm({
     }
 
     onSubmit({
-      type,
+      type: isFictitious ? 'real' : type,
       amount: cleanAmount,
       description: description.trim(),
       categoryId: type === 'income' ? 'other' : categoryId,
       date: date || todayStr,
-      savedExtraAmount: cleanSavedExtra,
+      savedExtraAmount: isFictitious ? undefined : cleanSavedExtra,
       periodId: initialValues?.periodId,
       tags: tags.length > 0 ? tags : undefined,
-      installmentGroupId: type === 'real' && hasInstallments ? (initialValues?.installmentGroupId ?? null) : null,
-      installmentNumber: type === 'real' && hasInstallments ? (initialValues?.installmentNumber ?? 1) : null,
-      installmentTotal: type === 'real' && hasInstallments ? installmentCount : null,
+      installmentGroupId: !isFictitious && type === 'real' && hasInstallments ? (initialValues?.installmentGroupId ?? null) : null,
+      installmentNumber: !isFictitious && type === 'real' && hasInstallments ? (initialValues?.installmentNumber ?? 1) : null,
+      installmentTotal: !isFictitious && type === 'real' && hasInstallments ? installmentCount : null,
       isRecurring: type === 'real' && nature === 'fixed' ? true : undefined,
       nature: type === 'real' ? nature : undefined,
+      subcategory: categoryId === 'vices' ? subcategory : undefined,
+      isFictitious: isFictitious || undefined,
     });
   };
 
@@ -206,6 +236,49 @@ export function ExpenseForm({
         </div>
       </div>
 
+      {/* Opción de Gasto Ficticio (Máscara para padres) */}
+      {type === 'real' && (
+        <div
+          className={`p-3 rounded-2xl border transition-all ${
+            isFictitious
+              ? 'bg-purple-50/90 border-purple-200 ring-2 ring-purple-400/20 shadow-xs'
+              : 'bg-slate-50/70 border-slate-200/80 hover:bg-slate-100/60'
+          }`}
+        >
+          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isFictitious}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setIsFictitious(checked);
+                if (checked) {
+                  if (categoryId === 'vices') {
+                    setCategoryId('food');
+                  }
+                  setHasCheaperOption(false);
+                  setHasInstallments(false);
+                }
+              }}
+              className="mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300"
+            />
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-800">
+                <span>🎭 Gasto Ficticio (Máscara para padres)</span>
+                {isFictitious && (
+                  <span className="text-[9px] bg-purple-200 text-purple-900 font-bold px-1.5 py-0.2 rounded-full">
+                    Activo
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                No altera tus métricas, estadísticas ni saldo real. Aparecerá en el reporte para padres como gasto legítimo para compensar vicios.
+              </span>
+            </div>
+          </label>
+        </div>
+      )}
+
       {/* 2. Display de Monto Gigante */}
       <div className="flex flex-col items-center justify-center py-2 border-b border-slate-100">
         <label
@@ -252,7 +325,7 @@ export function ExpenseForm({
       </div>
 
       {/* 3. Opción más barata / Ahorro extra DelaySpend (solo en real) */}
-      {type === 'real' && (
+      {type === 'real' && !isFictitious && (
         <div className="flex flex-col gap-3 p-3.5 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl shadow-2xs">
           <div
             className="flex items-center justify-between cursor-pointer"
@@ -357,13 +430,29 @@ export function ExpenseForm({
           <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1">
             {allCategories.map((cat) => {
               const isSelected = categoryId === cat.id;
+              const isVicesDisabled = isFictitious && cat.id === 'vices';
               return (
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setCategoryId(cat.id)}
+                  onClick={() => {
+                    if (isVicesDisabled) {
+                      showToast(
+                        'Un gasto ficticio no puede ser de la categoría Vicios (es una máscara ante tus padres).',
+                        'info'
+                      );
+                      return;
+                    }
+                    setCategoryId(cat.id);
+                    if (cat.id === 'vices' && !subcategory && currentSubcats.length > 0) {
+                      setSubcategory(currentSubcats[0]!);
+                    }
+                  }}
+                  disabled={isVicesDisabled}
                   className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all cursor-pointer text-center ${
-                    isSelected
+                    isVicesDisabled
+                      ? 'opacity-30 cursor-not-allowed bg-slate-100 text-slate-400'
+                      : isSelected
                       ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400 ring-offset-1'
                       : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'
                   }`}
@@ -376,6 +465,87 @@ export function ExpenseForm({
               );
             })}
           </div>
+
+          {/* Subcategorías dinámicas de Vicios */}
+          {type === 'real' && categoryId === 'vices' && (
+            <div className="flex flex-col gap-2 p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl mt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-amber-900 uppercase tracking-wider">
+                  Subcategoría de Vicios
+                </label>
+                <span className="text-[10px] text-amber-800 font-medium">
+                  0% visible a padres
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {currentSubcats.map((sub) => {
+                  const isSelected = subcategory.toLowerCase() === sub.toLowerCase();
+                  return (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => setSubcategory(sub)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-600 text-white shadow-xs scale-102'
+                          : 'bg-white text-amber-900 border border-amber-200 hover:bg-amber-100/60'
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  );
+                })}
+
+                {!isAddingSubcategory ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingSubcategory(true)}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-amber-800 bg-amber-100/80 border border-amber-300/80 hover:bg-amber-200/80 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Nueva</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 mt-1 sm:mt-0">
+                    <input
+                      type="text"
+                      value={newSubcatInput}
+                      onChange={(e) => setNewSubcatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSubcategory();
+                        }
+                      }}
+                      placeholder="Ej: Alcohol, Apuestas..."
+                      className="px-2.5 py-1 rounded-xl text-xs border border-amber-300 bg-white text-amber-950 focus:outline-none focus:ring-1 focus:ring-amber-500 w-36"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSubcategory}
+                      className="p-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700 cursor-pointer"
+                      title="Guardar subcategoría"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingSubcategory(false);
+                        setNewSubcatInput('');
+                      }}
+                      className="p-1 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 cursor-pointer"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -418,8 +588,8 @@ export function ExpenseForm({
         />
       </div>
 
-      {/* 7. Cuotas (solo en nuevos gastos reales) */}
-      {type === 'real' && !isEditing && (
+      {/* 7. Cuotas (solo en nuevos gastos reales y no ficticios) */}
+      {type === 'real' && !isEditing && !isFictitious && (
         <div className="flex flex-col gap-2 p-3 bg-sky-50/80 border border-sky-200/70 rounded-2xl">
           <div
             onClick={() => setHasInstallments(!hasInstallments)}

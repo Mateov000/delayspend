@@ -89,7 +89,7 @@ export function calculateCategorySpending(
   const spentMap = new Map<CategoryId, number>();
 
   for (const exp of expenses) {
-    if (exp.type !== 'real') continue;
+    if (exp.type !== 'real' || exp.isFictitious) continue;
     spentMap.set(exp.categoryId, (spentMap.get(exp.categoryId) ?? 0) + exp.amount);
   }
 
@@ -123,7 +123,7 @@ export function calculateCategorySpending(
  */
 export function getSpentForCategory(expenses: Expense[], categoryId: CategoryId): number {
   return expenses
-    .filter((e) => e.type === 'real' && e.categoryId === categoryId)
+    .filter((e) => e.type === 'real' && !e.isFictitious && e.categoryId === categoryId)
     .reduce((sum, e) => sum + e.amount, 0);
 }
 
@@ -202,7 +202,7 @@ export function calculateCategoryWeeklySpending(
 
   const spentMap = new Map<CategoryId, number>();
   for (const exp of expenses) {
-    if (exp.type === 'real' && exp.date >= start && exp.date <= end) {
+    if (exp.type === 'real' && !exp.isFictitious && exp.date >= start && exp.date <= end) {
       spentMap.set(exp.categoryId, (spentMap.get(exp.categoryId) ?? 0) + exp.amount);
     }
   }
@@ -248,7 +248,7 @@ export function calculateCategoryPeriodicSpending(
 ): CategoryWeeklySpending[] {
   const spentMap = new Map<CategoryId, number>();
   for (const exp of expenses) {
-    if (exp.type === 'real' && exp.date >= startStr && exp.date <= endStr) {
+    if (exp.type === 'real' && !exp.isFictitious && exp.date >= startStr && exp.date <= endStr) {
       spentMap.set(exp.categoryId, (spentMap.get(exp.categoryId) ?? 0) + exp.amount);
     }
   }
@@ -298,7 +298,7 @@ export function calculateWeeklySpending(
 
   const spentThisWeek = expenses
     .filter((e) => {
-      if (e.type !== 'real' || e.date < start || e.date > end) return false;
+      if (e.type !== 'real' || e.isFictitious || e.date < start || e.date > end) return false;
       const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
       // La meta semanal es para gasto corriente: excluye fijos, eventuales y casa
       // La meta de ritmo es para gasto corriente: excluye fijos, eventuales y casa
@@ -340,7 +340,7 @@ export function calculateMonthlySpending(
 
   const spent = expenses
     .filter((e) => {
-      if (e.type !== 'real' || e.date < start || e.date > end) return false;
+      if (e.type !== 'real' || e.isFictitious || e.date < start || e.date > end) return false;
       const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
       return nature === 'daily';
     })
@@ -385,7 +385,7 @@ export function calculateCustomDaysSpending(
 
   const spent = expenses
     .filter((e) => {
-      if (e.type !== 'real' || e.date < start || e.date > end) return false;
+      if (e.type !== 'real' || e.isFictitious || e.date < start || e.date > end) return false;
       const nature = e.nature ?? (e.isRecurring ? 'fixed' : 'daily');
       return nature === 'daily';
     })
@@ -429,6 +429,7 @@ export function calculatePeriodGoalProgress(
   if (!period || period.initialIncome <= 0) return null;
 
   const periodExpenses = expenses.filter((e) => {
+    if (e.isFictitious) return false;
     if (e.periodId) return e.periodId === period.id;
     if (e.date < period.startDate) return false;
     if (period.endDate && e.date > period.endDate) return false;

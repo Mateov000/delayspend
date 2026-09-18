@@ -19,6 +19,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   health: '#f43f5e',
   aesthetics: '#14b8a6',
   education: '#10b981',
+  vices: '#ea580c',
   other: '#64748b',
 };
 
@@ -40,7 +41,7 @@ function getCategoryColor(categoryId: string, index: number): string {
 function buildSlices(expenses: Expense[], customCategories: import('../../store/types').Category[] = []): Slice[] {
   const totals = new Map<string, number>();
   for (const exp of expenses) {
-    if (exp.type !== 'real') continue;
+    if (exp.type !== 'real' || exp.isFictitious) continue;
     totals.set(exp.categoryId, (totals.get(exp.categoryId) ?? 0) + exp.amount);
   }
 
@@ -116,7 +117,7 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
   const categoryExpenses = useMemo(() => {
     if (!activeSlice) return [];
     return expenses
-      .filter((e) => e.type === 'real' && e.categoryId === activeSlice.categoryId)
+      .filter((e) => e.type === 'real' && !e.isFictitious && e.categoryId === activeSlice.categoryId)
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [expenses, activeSlice]);
 
