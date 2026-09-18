@@ -7,6 +7,8 @@ import { AlertTriangle, Sparkles } from 'lucide-react';
 interface PeriodBarChartProps {
   expenses: Expense[];
   periods: Period[];
+  selectedPeriodId?: string;
+  onSelectPeriod?: (periodId: string) => void;
 }
 
 interface PeriodBarData {
@@ -78,7 +80,12 @@ function buildPeriodBars(expenses: Expense[], periods: Period[]): PeriodBarData[
   });
 }
 
-export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
+export function PeriodBarChart({
+  expenses,
+  periods,
+  selectedPeriodId,
+  onSelectPeriod,
+}: PeriodBarChartProps) {
   const [mode, setMode] = useState<'proportional' | 'percentage'>('proportional');
   const bars = useMemo(() => buildPeriodBars(expenses, periods), [expenses, periods]);
 
@@ -158,11 +165,18 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
           }
 
           const hasOverrun = bar.isOver && bar.excedente > 0;
+          const isSelected = selectedPeriodId === bar.id;
 
           return (
             <div
               key={bar.id}
-              className="flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-50/70 border border-slate-100 hover:border-slate-200 transition-colors"
+              onClick={() => onSelectPeriod?.(bar.id)}
+              className={`flex flex-col gap-1.5 p-3 rounded-2xl border transition-all ${
+                isSelected
+                  ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/20 shadow-xs'
+                  : 'bg-slate-50/70 border-slate-100 hover:border-slate-200 hover:bg-slate-100/60'
+              } ${onSelectPeriod ? 'cursor-pointer' : ''}`}
+              title={onSelectPeriod ? `Hacé clic para analizar ${bar.name}` : undefined}
             >
               {/* Cabecera del período */}
               <div className="flex items-center justify-between gap-2">
@@ -170,6 +184,11 @@ export function PeriodBarChart({ expenses, periods }: PeriodBarChartProps) {
                   <span className="text-xs font-bold text-slate-800 truncate">
                     {bar.name}
                   </span>
+                  {isSelected && (
+                    <span className="text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-md font-bold shrink-0 shadow-2xs">
+                      En análisis
+                    </span>
+                  )}
                   {bar.hasIncome && (
                     <span className="text-[10px] bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded-md font-medium shrink-0">
                       Ingreso: {formatCurrency(bar.initialIncome)}
