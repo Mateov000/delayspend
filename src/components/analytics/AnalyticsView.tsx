@@ -86,10 +86,16 @@ export function AnalyticsView({
     [periods]
   );
 
+  // Totalidad de gastos excluyendo ficticios (para analíticas personales)
+  const cleanExpenses = useMemo(
+    () => expenses.filter((e) => !e.isFictitious),
+    [expenses]
+  );
+
   // Gastos del período seleccionado (excluyendo ficticios de enmascaramiento)
   const filteredExpenses = useMemo(
-    () => expenses.filter((e) => !e.isFictitious && isExpenseMatchingFilter(e, activeFilter, activePeriod)),
-    [expenses, activeFilter, activePeriod]
+    () => cleanExpenses.filter((e) => isExpenseMatchingFilter(e, activeFilter, activePeriod)),
+    [cleanExpenses, activeFilter, activePeriod]
   );
 
   // Gastos filtrados por naturaleza para alimentar los gráficos
@@ -128,9 +134,9 @@ export function AnalyticsView({
       .filter((p) => !p.deletedAt)
       .reduce((sum, p) => sum + (p.initialIncome || 0), 0);
     const allExtraIncomes = expenses
-      .filter((e) => e.type === 'income')
+      .filter((e) => e.type === 'income' && !e.isFictitious)
       .reduce((sum, e) => sum + e.amount, 0);
-    const expenseCount = expenses.filter((e) => e.type !== 'income').length;
+    const expenseCount = expenses.filter((e) => e.type !== 'income' && !e.isFictitious).length;
 
     return {
       totalIncome: allInitialIncome + allExtraIncomes,
@@ -409,7 +415,7 @@ export function AnalyticsView({
         />
         <div className="mt-3">
           <BudgetGoalsCard
-            expenses={expenses}
+            expenses={cleanExpenses}
             activePeriod={activePeriod}
             onNavigateToSettings={onNavigateToSettings}
           />
@@ -570,7 +576,7 @@ export function AnalyticsView({
           />
           <div className="mt-3 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
             <PeriodBarChart
-              expenses={expenses}
+              expenses={cleanExpenses}
               periods={periods}
               selectedPeriodId={activePeriod?.id ?? 'all'}
               onSelectPeriod={handleSelectPeriod}

@@ -34,7 +34,7 @@ function buildPeriodBars(expenses: Expense[], periods: Period[]): PeriodBarData[
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
 
   return sorted.map((period) => {
-    const periodExpenses = expenses.filter((e) => isExpenseInPeriod(e, period));
+    const periodExpenses = expenses.filter((e) => !e.isFictitious && isExpenseInPeriod(e, period));
     let totalReal = 0;
     let totalDelayed = 0;
     let totalExtraIncome = 0;

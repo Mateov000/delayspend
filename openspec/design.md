@@ -477,10 +477,13 @@ export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'guest';
 export interface SyncState {
   status: SyncStatus;
   lastSyncedAt: string | null;
+  lastError: string | null;
   setStatus: (status: SyncStatus) => void;
   initializeSync: (userId: string | null) => () => void;
   pushExpense: (expense: Expense, userId: string) => Promise<void>;
   deleteRemoteExpense: (id: string, userId: string) => Promise<void>;
+  pushPeriod: (period: Period, userId: string) => Promise<void>;
+  deleteRemotePeriod: (id: string, userId: string) => Promise<void>;
   syncAllWithCloud: (userId: string) => Promise<void>;
 }
 ```
@@ -501,6 +504,13 @@ export interface SyncState {
    - **Debounce de Reconexión:** Los eventos de reconexión se consolidan mediante un debouncer de 300-400ms.
    - **Watchdog Timer de Seguridad (10 segundos):** Si la UI entra en `status: 'syncing'`, un temporizador de 10s fuerza el retorno a un estado seguro (`'synced'` o `'offline'`), eliminando definitivamente el spinner infinito en dispositivos móviles.
    - **Reconexión de Realtime WebSockets:** Al detectar el retorno de conectividad o foco en la ventana, se invoca `supabase.realtime.connect()` para reanudar el transporte WebSocket suspendido por iOS.
+   - **Desacople de `navigator.onLine`:** En WebKit/iOS Safari, `navigator.onLine` reporta falsos negativos recurrentes tras desbloquear la pantalla. La sincronización intenta la conexión y delega la detección en el resultado real de red con timeout de 8 segundos.
+   - **Fallback Adaptativo de Esquema (Schema Fallback):** Si la base de datos remota de Supabase aún no cuenta con las columnas `is_fictitious` o `subcategory` (PostgREST error 400 / SQLSTATE 42703), el sincronizador detecta la ausencia de columnas, sanea el payload excluyéndolas temporalmente y reintenta el `upsert` de inmediato, garantizando sincronización exitosa sin interrumpir al usuario.
+7. **Aislamiento Total de Gastos Ficticios (`isFictitious: true`):**
+   - No computan en `totalReal`, `totalDelayed`, `netDailyAllowance`, promedios ni proyecciones de fin de mes.
+   - No computan en el gráfico comparativo de barras de ciclos (`PeriodBarChart`).
+   - No computan en los subtotales diarios de la vista del historial (`groupExpensesByDate`).
+   - Cero presencia en analíticas personales: su cómputo es exclusivamente para la tarjeta de balance de vicios (`ViceBalanceCard`) y para la rendición de cuentas a padres (`ExportPanel`).
 
 ---
 

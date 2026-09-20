@@ -10,6 +10,7 @@ export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'guest';
 interface SyncState {
   status: SyncStatus;
   lastSyncedAt: string | null;
+  lastError: string | null;
   setStatus: (status: SyncStatus) => void;
   initializeSync: (userId: string | null) => () => void;
   pushExpense: (expense: Expense, userId: string) => Promise<void>;
@@ -169,11 +170,90 @@ function withTimeout<T>(
   });
 }
 
-// Variables de módulo para control de concurrencia y watchdog
+// Variables de módulo para control de compatibilidad, concurrencia y watchdog
+let supportsFictitiousAndSubcategory = true;
 let activeSyncPromise: Promise<void> | null = null;
 let lastSyncTimestamp = 0;
 let syncingWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as { code?: string; message?: string; details?: string; hint?: string };
+  const msg = String(err.message || err.details || err.hint || '').toLowerCase();
+  return (
+    err.code === '42703' ||
+    msg.includes('is_fictitious') ||
+    msg.includes('subcategory') ||
+    msg.includes('schema cache')
+  );
+}
+
+function sanitizeExpenseRow(
+  row: Omit<DbExpenseRow, 'deleted_at'>,
+  includeOptional: boolean
+): Omit<DbExpenseRow, 'deleted_at'> {
+  if (includeOptional) return row;
+  const copy = { ...row };
+  delete copy.is_fictitious;
+  delete copy.subcategory;
+  return copy;
+}
+
+async function upsertExpensesResilient(
+  rows: Omit<DbExpenseRow, 'deleted_at'>[],
+  timeoutMs = 8000
+): Promise<{ error: Error | { message?: string } | null }> {
+  if (rows.length === 0) return { error: null };
+
+  const payload = supportsFictitiousAndSubcategory
+    ? rows
+    : rows.map((r) => sanitizeExpenseRow(r, false));
+
+  const { error } = await withTimeout(
+    supabase.from('expenses').upsert(payload),
+    timeoutMs,
+    'subida de gastos'
+  );
+
+  if (error && supportsFictitiousAndSubcategory && isMissingColumnError(error)) {
+    console.warn('[Sync] Supabase no posee columnas is_fictitious/subcategory. Reintentando en modo compatible...');
+    supportsFictitiousAndSubcategory = false;
+    const fallbackPayload = rows.map((r) => sanitizeExpenseRow(r, false));
+    return await withTimeout(
+      supabase.from('expenses').upsert(fallbackPayload),
+      timeoutMs,
+      'subida de gastos (modo compatible)'
+    );
+  }
+
+  return { error };
+}
+
+async function upsertSingleExpenseResilient(
+  row: Omit<DbExpenseRow, 'deleted_at'>,
+  timeoutMs = 6000
+): Promise<{ error: Error | { message?: string } | null }> {
+  const payload = supportsFictitiousAndSubcategory ? row : sanitizeExpenseRow(row, false);
+  const { error } = await withTimeout(
+    supabase.from('expenses').upsert(payload),
+    timeoutMs,
+    'pushExpense'
+  );
+
+  if (error && supportsFictitiousAndSubcategory && isMissingColumnError(error)) {
+    console.warn('[Sync] Columna no disponible en tabla remota. Reintentando en modo compatible...');
+    supportsFictitiousAndSubcategory = false;
+    const fallbackPayload = sanitizeExpenseRow(row, false);
+    return await withTimeout(
+      supabase.from('expenses').upsert(fallbackPayload),
+      timeoutMs,
+      'pushExpense (modo compatible)'
+    );
+  }
+
+  return { error };
+}
 
 function startSyncingWatchdog(set: (state: Partial<SyncState>) => void) {
   if (syncingWatchdogTimer) {
@@ -199,6 +279,7 @@ function clearSyncingWatchdog() {
 export const useSyncStore = create<SyncState>((set, get) => ({
   status: 'guest',
   lastSyncedAt: null,
+  lastError: null,
 
   setStatus: (status: SyncStatus) => set({ status }),
 
@@ -232,17 +313,15 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         clearTimeout(reconnectDebounceTimer);
       }
       reconnectDebounceTimer = setTimeout(() => {
-        if (navigator.onLine) {
-          // En iOS, despertar el socket Realtime de Supabase si estaba suspendido
-          try {
-            if (supabase.realtime) {
-              supabase.realtime.connect();
-            }
-          } catch {
-            // Ignorar error si el cliente no lo soporta
+        // En iOS, despertar el socket Realtime de Supabase si estaba suspendido
+        try {
+          if (supabase.realtime) {
+            supabase.realtime.connect();
           }
-          get().syncAllWithCloud(uid);
+        } catch {
+          // Ignorar error si el cliente no lo soporta
         }
+        get().syncAllWithCloud(uid);
       }, delay);
     };
 
@@ -262,7 +341,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     };
 
     const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) {
+      if (document.visibilityState === 'visible') {
         scheduleSync(userId, 300);
       }
     };
@@ -376,8 +455,8 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   },
 
   syncAllWithCloud: async (userId: string) => {
-    if (!isSupabaseConfigured || !navigator.onLine) {
-      set({ status: 'offline' });
+    if (!isSupabaseConfigured) {
+      set({ status: 'guest' });
       return;
     }
 
@@ -397,7 +476,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
     activeSyncPromise = (async () => {
       try {
-        // 1. SINCRONIZACIÓN DE PERÍODOS PRIMERO
+        // En iOS, despertar el socket Realtime de Supabase si estaba suspendido
+        try {
+          if (supabase.realtime) {
+            supabase.realtime.connect();
+          }
+        } catch {
+          // Ignorar error si el cliente no lo soporta
+        }
+
+        // 1. SINCRONIZACIÓN DE PERÍODOS PRIMERO (para que los period_id de los gastos ya existan en la BD remota)
         const { data: remotePeriodRows, error: perError } = await withTimeout(
           supabase
             .from('periods')
@@ -503,11 +591,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
         if (expensesToUpload.length > 0) {
           const payload = expensesToUpload.map((e) => mapExpenseToRow(e, userId));
-          const { error: upsertExpError } = await withTimeout(
-            supabase.from('expenses').upsert(payload),
-            8000,
-            'subida de gastos'
-          );
+          const { error: upsertExpError } = await upsertExpensesResilient(payload, 8000);
           if (upsertExpError) {
             console.error('Error upserting expenses to Supabase:', upsertExpError);
             throw upsertExpError;
@@ -520,11 +604,12 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         useExpenseStore.setState({ expenses: allMergedExpenses });
 
         lastSyncTimestamp = Date.now();
-        set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
-      } catch (err) {
+        set({ status: 'synced', lastSyncedAt: new Date().toISOString(), lastError: null });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err || 'Error de conexión');
         console.error('Sync error in syncAllWithCloud:', err);
         // Fallback seguro: nunca dejar 'syncing' infinito
-        set({ status: 'offline' });
+        set({ status: 'offline', lastError: errorMsg });
       } finally {
         clearSyncingWatchdog();
         activeSyncPromise = null;
@@ -535,27 +620,23 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   },
 
   pushExpense: async (expense: Expense, userId: string) => {
-    if (!isSupabaseConfigured || !navigator.onLine) return;
+    if (!isSupabaseConfigured) return;
     try {
-      const { error } = await withTimeout(
-        supabase.from('expenses').upsert(mapExpenseToRow(expense, userId)),
-        6000,
-        'pushExpense'
-      );
+      const { error } = await upsertSingleExpenseResilient(mapExpenseToRow(expense, userId), 6000);
       if (error) {
         console.error('Error in pushExpense:', error);
-        set({ status: 'offline' });
+        set({ status: 'offline', lastError: (error as { message?: string }).message || 'Error al guardar gasto' });
         return;
       }
-      set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
-    } catch (err) {
+      set({ status: 'synced', lastSyncedAt: new Date().toISOString(), lastError: null });
+    } catch (err: unknown) {
       console.error('Exception in pushExpense:', err);
-      set({ status: 'offline' });
+      set({ status: 'offline', lastError: err instanceof Error ? err.message : 'Error de conexión' });
     }
   },
 
   deleteRemoteExpense: async (id: string, userId: string) => {
-    if (!isSupabaseConfigured || !navigator.onLine) return;
+    if (!isSupabaseConfigured) return;
     try {
       const { error } = await withTimeout(
         supabase
@@ -568,18 +649,18 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       );
       if (error) {
         console.error('Error in deleteRemoteExpense:', error);
-        set({ status: 'offline' });
+        set({ status: 'offline', lastError: error.message || 'Error al eliminar gasto' });
         return;
       }
-      set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
-    } catch (err) {
+      set({ status: 'synced', lastSyncedAt: new Date().toISOString(), lastError: null });
+    } catch (err: unknown) {
       console.error('Exception in deleteRemoteExpense:', err);
-      set({ status: 'offline' });
+      set({ status: 'offline', lastError: err instanceof Error ? err.message : 'Error de conexión' });
     }
   },
 
   pushPeriod: async (period: Period, userId: string) => {
-    if (!isSupabaseConfigured || !navigator.onLine) return;
+    if (!isSupabaseConfigured) return;
     try {
       const { error } = await withTimeout(
         supabase.from('periods').upsert({
@@ -598,18 +679,18 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       );
       if (error) {
         console.error('Error in pushPeriod:', error);
-        set({ status: 'offline' });
+        set({ status: 'offline', lastError: error.message || 'Error al guardar período' });
         return;
       }
-      set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
-    } catch (err) {
+      set({ status: 'synced', lastSyncedAt: new Date().toISOString(), lastError: null });
+    } catch (err: unknown) {
       console.error('Exception in pushPeriod:', err);
-      set({ status: 'offline' });
+      set({ status: 'offline', lastError: err instanceof Error ? err.message : 'Error de conexión' });
     }
   },
 
   deleteRemotePeriod: async (id: string, userId: string) => {
-    if (!isSupabaseConfigured || !navigator.onLine) return;
+    if (!isSupabaseConfigured) return;
     try {
       const { error } = await withTimeout(
         supabase
@@ -622,13 +703,13 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       );
       if (error) {
         console.error('Error in deleteRemotePeriod:', error);
-        set({ status: 'offline' });
+        set({ status: 'offline', lastError: error.message || 'Error al eliminar período' });
         return;
       }
-      set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
-    } catch (err) {
+      set({ status: 'synced', lastSyncedAt: new Date().toISOString(), lastError: null });
+    } catch (err: unknown) {
       console.error('Exception in deleteRemotePeriod:', err);
-      set({ status: 'offline' });
+      set({ status: 'offline', lastError: err instanceof Error ? err.message : 'Error de conexión' });
     }
   },
 }));

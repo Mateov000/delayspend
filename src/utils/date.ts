@@ -105,11 +105,13 @@ export function groupExpensesByDate(expenses: Expense[]): ExpenseGroup[] {
 
     for (const item of items) {
       if (item.type === 'real') {
-        subtotalReal += item.amount;
+        if (!item.isFictitious) {
+          subtotalReal += item.amount;
+        }
         if (item.savedExtraAmount && item.savedExtraAmount > 0) {
           subtotalDelayed += item.savedExtraAmount;
         }
-      } else {
+      } else if (item.type === 'delayed') {
         subtotalDelayed += item.amount;
       }
     }

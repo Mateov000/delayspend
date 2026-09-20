@@ -12,18 +12,13 @@ interface HeaderProps {
 
 export function Header({ onOpenExport, onOpenAuth }: HeaderProps) {
   const { user } = useAuthStore();
-  const { status, syncAllWithCloud } = useSyncStore();
+  const { status, lastError, syncAllWithCloud } = useSyncStore();
   const { showToast } = useToastStore();
 
   const handleSyncRetry = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) {
       onOpenAuth?.();
-      return;
-    }
-
-    if (!navigator.onLine) {
-      showToast('Sin conexión a internet. Los datos están seguros en tu teléfono.', 'info');
       return;
     }
 
@@ -66,7 +61,7 @@ export function Header({ onOpenExport, onOpenAuth }: HeaderProps) {
           type="button"
           onClick={handleSyncRetry}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 cursor-pointer"
-          title="Sin conexión. Tocá para reintentar sincronizar"
+          title={lastError ? `Sin conexión (${lastError}). Tocá para reintentar.` : 'Sin conexión. Tocá para reintentar sincronizar'}
         >
           <WifiOff className="w-3.5 h-3.5" />
           <span className="hidden sm:inline text-[11px]">{STRINGS.SYNC_STATUS_OFFLINE}</span>

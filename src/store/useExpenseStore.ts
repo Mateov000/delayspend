@@ -155,7 +155,7 @@ export const useExpenseStore = create<ExpenseState>()(
           installmentTotal: hasInstallments ? input.installmentTotal : null,
           isRecurring: input.type === 'real' && (input.nature === 'fixed' || input.isRecurring) ? true : undefined,
           nature: input.type === 'real' ? (input.nature ?? (input.isRecurring ? 'fixed' : 'daily')) : undefined,
-          subcategory: input.categoryId === 'vices' && input.subcategory ? input.subcategory.trim() : undefined,
+          subcategory: input.subcategory ? input.subcategory.trim() : undefined,
           isFictitious: Boolean(input.isFictitious) || undefined,
         };
 
