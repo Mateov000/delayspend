@@ -495,6 +495,12 @@ export interface SyncState {
 3. **Resolución de Conflictos Last-Write-Wins (LWW)**: Tanto en el merge inicial como en eventos en tiempo real, si existen dos versiones de un mismo registro (`id`), prevalece aquella con el timestamp `updatedAt` más reciente.
 4. **Propagación de Borrados con Soft-Delete**: Al eliminar un registro en la nube, se estampa `deleted_at = now()` para que otros dispositivos conectados sepan que deben eliminarlo de su caché local antes de la purga física.
 5. **Merge al Iniciar Sesión**: Si un usuario tiene gastos cargados localmente de forma anónima y decide crear o iniciar sesión en su cuenta, `syncAllWithCloud` sube automáticamente los gastos locales a la base de datos sin pérdida de información.
+6. **Resiliencia de Red y Prevención de Cuelgues en iOS / Safari:**
+   - **`withTimeout` Estricto:** Toda petición de red hacia Supabase REST (`select`, `upsert`, `update`) se ejecuta bajo un límite de tiempo estricto (8 segundos para sync general, 6 segundos para push/delete). Si WebKit mantiene sockets TCP "half-open" o congelados, la promesa se aborta y se captura limpiamente sin colgar la app.
+   - **Mutex y Deduplicación Concurrente:** Un semáforo (`activeSyncPromise`) garantiza que si `online`, `visibilitychange` y `focus` se disparan simultáneamente (típico al desbloquear un iPhone), solo se procese una sincronización unificada.
+   - **Debounce de Reconexión:** Los eventos de reconexión se consolidan mediante un debouncer de 300-400ms.
+   - **Watchdog Timer de Seguridad (10 segundos):** Si la UI entra en `status: 'syncing'`, un temporizador de 10s fuerza el retorno a un estado seguro (`'synced'` o `'offline'`), eliminando definitivamente el spinner infinito en dispositivos móviles.
+   - **Reconexión de Realtime WebSockets:** Al detectar el retorno de conectividad o foco en la ventana, se invoca `supabase.realtime.connect()` para reanudar el transporte WebSocket suspendido por iOS.
 
 ---
 

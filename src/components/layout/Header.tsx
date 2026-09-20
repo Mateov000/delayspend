@@ -3,6 +3,8 @@ import { STRINGS } from '../../constants/strings';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useSyncStore } from '../../store/useSyncStore';
 
+import { useToastStore } from '../../store/useToastStore';
+
 interface HeaderProps {
   onOpenExport?: () => void;
   onOpenAuth?: () => void;
@@ -10,7 +12,24 @@ interface HeaderProps {
 
 export function Header({ onOpenExport, onOpenAuth }: HeaderProps) {
   const { user } = useAuthStore();
-  const { status } = useSyncStore();
+  const { status, syncAllWithCloud } = useSyncStore();
+  const { showToast } = useToastStore();
+
+  const handleSyncRetry = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      onOpenAuth?.();
+      return;
+    }
+
+    if (!navigator.onLine) {
+      showToast('Sin conexión a internet. Los datos están seguros en tu teléfono.', 'info');
+      return;
+    }
+
+    showToast('Sincronizando con la nube...', 'info');
+    syncAllWithCloud(user.id);
+  };
 
   const renderSyncBadge = () => {
     if (!user) {
@@ -31,8 +50,9 @@ export function Header({ onOpenExport, onOpenAuth }: HeaderProps) {
       return (
         <button
           type="button"
-          onClick={onOpenAuth}
+          onClick={handleSyncRetry}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-sky-700 bg-sky-50 border border-sky-200 cursor-pointer"
+          title="Sincronizando... Tocá para reintentar"
         >
           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
           <span className="hidden sm:inline text-[11px]">{STRINGS.SYNC_STATUS_SYNCING}</span>
@@ -44,8 +64,9 @@ export function Header({ onOpenExport, onOpenAuth }: HeaderProps) {
       return (
         <button
           type="button"
-          onClick={onOpenAuth}
+          onClick={handleSyncRetry}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 cursor-pointer"
+          title="Sin conexión. Tocá para reintentar sincronizar"
         >
           <WifiOff className="w-3.5 h-3.5" />
           <span className="hidden sm:inline text-[11px]">{STRINGS.SYNC_STATUS_OFFLINE}</span>
@@ -58,7 +79,7 @@ export function Header({ onOpenExport, onOpenAuth }: HeaderProps) {
         type="button"
         onClick={onOpenAuth}
         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 cursor-pointer"
-        title={`Conectado como ${user.email}`}
+        title={`Conectado como ${user.email}. Tocá para ver opciones de cuenta`}
       >
         <Check className="w-3.5 h-3.5 text-emerald-600" />
         <span className="hidden sm:inline text-[11px]">{STRINGS.SYNC_STATUS_SYNCED}</span>

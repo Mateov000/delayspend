@@ -133,6 +133,69 @@ function mapExpenseToRow(expense: Expense, userId: string): Omit<DbExpenseRow, '
   };
 }
 
+/**
+ * Envuelve cualquier promesa con un límite estricto de tiempo.
+ * Vital para iOS WebKit donde peticiones fetch en sockets interrumpidos pueden colgarse indefinidamente.
+ */
+function withTimeout<T>(
+  promise: PromiseLike<T>,
+  ms = 8000,
+  label = 'Operación de sincronización'
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`Timeout de red (${ms}ms) en ${label}`));
+      }
+    }, ms);
+
+    Promise.resolve(promise)
+      .then((val) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(val);
+        }
+      })
+      .catch((err) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          reject(err);
+        }
+      });
+  });
+}
+
+// Variables de módulo para control de concurrencia y watchdog
+let activeSyncPromise: Promise<void> | null = null;
+let lastSyncTimestamp = 0;
+let syncingWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startSyncingWatchdog(set: (state: Partial<SyncState>) => void) {
+  if (syncingWatchdogTimer) {
+    clearTimeout(syncingWatchdogTimer);
+  }
+  // Si pasan más de 10 segundos en estado 'syncing', forzar a un estado seguro
+  syncingWatchdogTimer = setTimeout(() => {
+    const currentStatus = useSyncStore.getState().status;
+    if (currentStatus === 'syncing') {
+      console.warn('[Sync Watchdog] Sincronización excedió el tiempo límite (10s). Restaurando estado de interfaz.');
+      set({ status: navigator.onLine ? 'synced' : 'offline' });
+    }
+  }, 10000);
+}
+
+function clearSyncingWatchdog() {
+  if (syncingWatchdogTimer) {
+    clearTimeout(syncingWatchdogTimer);
+    syncingWatchdogTimer = null;
+  }
+}
+
 export const useSyncStore = create<SyncState>((set, get) => ({
   status: 'guest',
   lastSyncedAt: null,
@@ -164,18 +227,43 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       }
     });
 
+    const scheduleSync = (uid: string, delay = 400) => {
+      if (reconnectDebounceTimer) {
+        clearTimeout(reconnectDebounceTimer);
+      }
+      reconnectDebounceTimer = setTimeout(() => {
+        if (navigator.onLine) {
+          // En iOS, despertar el socket Realtime de Supabase si estaba suspendido
+          try {
+            if (supabase.realtime) {
+              supabase.realtime.connect();
+            }
+          } catch {
+            // Ignorar error si el cliente no lo soporta
+          }
+          get().syncAllWithCloud(uid);
+        }
+      }, delay);
+    };
+
     const handleOnline = () => {
       set({ status: 'syncing' });
-      get().syncAllWithCloud(userId);
+      startSyncingWatchdog(set);
+      scheduleSync(userId, 200);
     };
 
     const handleOffline = () => {
+      if (reconnectDebounceTimer) {
+        clearTimeout(reconnectDebounceTimer);
+        reconnectDebounceTimer = null;
+      }
+      clearSyncingWatchdog();
       set({ status: 'offline' });
     };
 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible' && navigator.onLine) {
-        get().syncAllWithCloud(userId);
+        scheduleSync(userId, 300);
       }
     };
 
@@ -184,7 +272,8 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('focus', handleVisibilityOrFocus);
 
-    get().syncAllWithCloud(userId);
+    // Sincronización inicial
+    scheduleSync(userId, 100);
 
     let expenseChannel: RealtimeChannel | null = null;
     let periodChannel: RealtimeChannel | null = null;
@@ -270,6 +359,11 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     }
 
     return () => {
+      if (reconnectDebounceTimer) {
+        clearTimeout(reconnectDebounceTimer);
+        reconnectDebounceTimer = null;
+      }
+      clearSyncingWatchdog();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
@@ -287,126 +381,167 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       return;
     }
 
-    set({ status: 'syncing' });
-
-    try {
-      // 1. SINCRONIZACIÓN DE PERÍODOS PRIMERO (para que los period_id de los gastos ya existan en la BD remota)
-      const { data: remotePeriodRows, error: perError } = await supabase
-        .from('periods')
-        .select('*')
-        .eq('user_id', userId)
-        .is('deleted_at', null);
-
-      if (perError) {
-        console.error('Error fetching remote periods:', perError);
-        throw perError;
-      }
-
-      const remotePeriods = (remotePeriodRows as DbPeriodRow[]).map(mapRowToPeriod);
-      const localPeriods = usePeriodStore.getState().periods;
-
-      const mergedPeriodsMap = new Map<string, Period>();
-      for (const remote of remotePeriods) {
-        mergedPeriodsMap.set(remote.id, remote);
-      }
-
-      const periodsToUpload: Period[] = [];
-      for (const local of localPeriods) {
-        const remote = mergedPeriodsMap.get(local.id);
-        if (!remote) {
-          periodsToUpload.push(local);
-          mergedPeriodsMap.set(local.id, local);
-        } else if (new Date(local.updatedAt) > new Date(remote.updatedAt)) {
-          periodsToUpload.push(local);
-          mergedPeriodsMap.set(local.id, local);
-        }
-      }
-
-      if (periodsToUpload.length > 0) {
-        const periodPayload = periodsToUpload.map((p) => ({
-          id: p.id,
-          user_id: userId,
-          name: p.name,
-          start_date: p.startDate,
-          end_date: p.endDate,
-          initial_income: p.initialIncome,
-          cutoff_expense_id: p.cutoffExpenseId ?? null,
-          created_at: p.createdAt,
-          updated_at: p.updatedAt,
-        }));
-        const { error: upsertPeriodError } = await supabase.from('periods').upsert(periodPayload);
-        if (upsertPeriodError) {
-          console.error('Error upserting periods to Supabase:', upsertPeriodError);
-          throw upsertPeriodError;
-        }
-      }
-
-      const allMergedPeriods = Array.from(mergedPeriodsMap.values()).sort(
-        (a, b) => b.startDate.localeCompare(a.startDate) || b.createdAt.localeCompare(a.createdAt)
-      );
-      usePeriodStore.getState().setPeriods(allMergedPeriods);
-
-      // 2. SINCRONIZACIÓN DE GASTOS
-      const { data: remoteRows, error: expError } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', userId)
-        .is('deleted_at', null);
-
-      if (expError) {
-        console.error('Error fetching remote expenses:', expError);
-        throw expError;
-      }
-
-      // Filtrar registros legacy con linked_expense_id
-      const remoteExpenses = (remoteRows as DbExpenseRow[])
-        .filter((r) => !r.linked_expense_id)
-        .map(mapRowToExpense);
-
-      const localExpenses = useExpenseStore.getState().expenses;
-
-      const mergedExpensesMap = new Map<string, Expense>();
-      for (const remote of remoteExpenses) {
-        mergedExpensesMap.set(remote.id, remote);
-      }
-
-      const expensesToUpload: Expense[] = [];
-      for (const local of localExpenses) {
-        const remote = mergedExpensesMap.get(local.id);
-        if (!remote) {
-          expensesToUpload.push(local);
-          mergedExpensesMap.set(local.id, local);
-        } else if (new Date(local.updatedAt) > new Date(remote.updatedAt)) {
-          expensesToUpload.push(local);
-          mergedExpensesMap.set(local.id, local);
-        }
-      }
-
-      if (expensesToUpload.length > 0) {
-        const payload = expensesToUpload.map((e) => mapExpenseToRow(e, userId));
-        const { error: upsertExpError } = await supabase.from('expenses').upsert(payload);
-        if (upsertExpError) {
-          console.error('Error upserting expenses to Supabase:', upsertExpError);
-          throw upsertExpError;
-        }
-      }
-
-      const allMergedExpenses = Array.from(mergedExpensesMap.values()).sort(
-        (a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)
-      );
-      useExpenseStore.setState({ expenses: allMergedExpenses });
-
-      set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
-    } catch (err) {
-      console.error('Sync error in syncAllWithCloud:', err);
-      set({ status: 'offline' });
+    // Mutex: si ya hay una sincronización en marcha, reusar esa misma promesa
+    if (activeSyncPromise) {
+      return activeSyncPromise;
     }
+
+    // Evitar ráfagas si acabamos de sincronizar hace menos de 800ms
+    const now = Date.now();
+    if (now - lastSyncTimestamp < 800 && get().status === 'synced') {
+      return;
+    }
+
+    set({ status: 'syncing' });
+    startSyncingWatchdog(set);
+
+    activeSyncPromise = (async () => {
+      try {
+        // 1. SINCRONIZACIÓN DE PERÍODOS PRIMERO
+        const { data: remotePeriodRows, error: perError } = await withTimeout(
+          supabase
+            .from('periods')
+            .select('*')
+            .eq('user_id', userId)
+            .is('deleted_at', null),
+          8000,
+          'descarga de períodos'
+        );
+
+        if (perError) {
+          console.error('Error fetching remote periods:', perError);
+          throw perError;
+        }
+
+        const remotePeriods = (remotePeriodRows as DbPeriodRow[]).map(mapRowToPeriod);
+        const localPeriods = usePeriodStore.getState().periods;
+
+        const mergedPeriodsMap = new Map<string, Period>();
+        for (const remote of remotePeriods) {
+          mergedPeriodsMap.set(remote.id, remote);
+        }
+
+        const periodsToUpload: Period[] = [];
+        for (const local of localPeriods) {
+          const remote = mergedPeriodsMap.get(local.id);
+          if (!remote) {
+            periodsToUpload.push(local);
+            mergedPeriodsMap.set(local.id, local);
+          } else if (new Date(local.updatedAt) > new Date(remote.updatedAt)) {
+            periodsToUpload.push(local);
+            mergedPeriodsMap.set(local.id, local);
+          }
+        }
+
+        if (periodsToUpload.length > 0) {
+          const periodPayload = periodsToUpload.map((p) => ({
+            id: p.id,
+            user_id: userId,
+            name: p.name,
+            start_date: p.startDate,
+            end_date: p.endDate,
+            initial_income: p.initialIncome,
+            cutoff_expense_id: p.cutoffExpenseId ?? null,
+            created_at: p.createdAt,
+            updated_at: p.updatedAt,
+          }));
+          const { error: upsertPeriodError } = await withTimeout(
+            supabase.from('periods').upsert(periodPayload),
+            8000,
+            'subida de períodos'
+          );
+          if (upsertPeriodError) {
+            console.error('Error upserting periods to Supabase:', upsertPeriodError);
+            throw upsertPeriodError;
+          }
+        }
+
+        const allMergedPeriods = Array.from(mergedPeriodsMap.values()).sort(
+          (a, b) => b.startDate.localeCompare(a.startDate) || b.createdAt.localeCompare(a.createdAt)
+        );
+        usePeriodStore.getState().setPeriods(allMergedPeriods);
+
+        // 2. SINCRONIZACIÓN DE GASTOS
+        const { data: remoteRows, error: expError } = await withTimeout(
+          supabase
+            .from('expenses')
+            .select('*')
+            .eq('user_id', userId)
+            .is('deleted_at', null),
+          8000,
+          'descarga de gastos'
+        );
+
+        if (expError) {
+          console.error('Error fetching remote expenses:', expError);
+          throw expError;
+        }
+
+        // Filtrar registros legacy con linked_expense_id
+        const remoteExpenses = (remoteRows as DbExpenseRow[])
+          .filter((r) => !r.linked_expense_id)
+          .map(mapRowToExpense);
+
+        const localExpenses = useExpenseStore.getState().expenses;
+
+        const mergedExpensesMap = new Map<string, Expense>();
+        for (const remote of remoteExpenses) {
+          mergedExpensesMap.set(remote.id, remote);
+        }
+
+        const expensesToUpload: Expense[] = [];
+        for (const local of localExpenses) {
+          const remote = mergedExpensesMap.get(local.id);
+          if (!remote) {
+            expensesToUpload.push(local);
+            mergedExpensesMap.set(local.id, local);
+          } else if (new Date(local.updatedAt) > new Date(remote.updatedAt)) {
+            expensesToUpload.push(local);
+            mergedExpensesMap.set(local.id, local);
+          }
+        }
+
+        if (expensesToUpload.length > 0) {
+          const payload = expensesToUpload.map((e) => mapExpenseToRow(e, userId));
+          const { error: upsertExpError } = await withTimeout(
+            supabase.from('expenses').upsert(payload),
+            8000,
+            'subida de gastos'
+          );
+          if (upsertExpError) {
+            console.error('Error upserting expenses to Supabase:', upsertExpError);
+            throw upsertExpError;
+          }
+        }
+
+        const allMergedExpenses = Array.from(mergedExpensesMap.values()).sort(
+          (a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)
+        );
+        useExpenseStore.setState({ expenses: allMergedExpenses });
+
+        lastSyncTimestamp = Date.now();
+        set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
+      } catch (err) {
+        console.error('Sync error in syncAllWithCloud:', err);
+        // Fallback seguro: nunca dejar 'syncing' infinito
+        set({ status: 'offline' });
+      } finally {
+        clearSyncingWatchdog();
+        activeSyncPromise = null;
+      }
+    })();
+
+    return activeSyncPromise;
   },
 
   pushExpense: async (expense: Expense, userId: string) => {
     if (!isSupabaseConfigured || !navigator.onLine) return;
     try {
-      const { error } = await supabase.from('expenses').upsert(mapExpenseToRow(expense, userId));
+      const { error } = await withTimeout(
+        supabase.from('expenses').upsert(mapExpenseToRow(expense, userId)),
+        6000,
+        'pushExpense'
+      );
       if (error) {
         console.error('Error in pushExpense:', error);
         set({ status: 'offline' });
@@ -422,11 +557,15 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   deleteRemoteExpense: async (id: string, userId: string) => {
     if (!isSupabaseConfigured || !navigator.onLine) return;
     try {
-      const { error } = await supabase
-        .from('expenses')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('user_id', userId);
+      const { error } = await withTimeout(
+        supabase
+          .from('expenses')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', id)
+          .eq('user_id', userId),
+        6000,
+        'deleteRemoteExpense'
+      );
       if (error) {
         console.error('Error in deleteRemoteExpense:', error);
         set({ status: 'offline' });
@@ -442,17 +581,21 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   pushPeriod: async (period: Period, userId: string) => {
     if (!isSupabaseConfigured || !navigator.onLine) return;
     try {
-      const { error } = await supabase.from('periods').upsert({
-        id: period.id,
-        user_id: userId,
-        name: period.name,
-        start_date: period.startDate,
-        end_date: period.endDate,
-        initial_income: period.initialIncome,
-        cutoff_expense_id: period.cutoffExpenseId ?? null,
-        created_at: period.createdAt,
-        updated_at: period.updatedAt,
-      });
+      const { error } = await withTimeout(
+        supabase.from('periods').upsert({
+          id: period.id,
+          user_id: userId,
+          name: period.name,
+          start_date: period.startDate,
+          end_date: period.endDate,
+          initial_income: period.initialIncome,
+          cutoff_expense_id: period.cutoffExpenseId ?? null,
+          created_at: period.createdAt,
+          updated_at: period.updatedAt,
+        }),
+        6000,
+        'pushPeriod'
+      );
       if (error) {
         console.error('Error in pushPeriod:', error);
         set({ status: 'offline' });
@@ -468,11 +611,15 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   deleteRemotePeriod: async (id: string, userId: string) => {
     if (!isSupabaseConfigured || !navigator.onLine) return;
     try {
-      const { error } = await supabase
-        .from('periods')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('user_id', userId);
+      const { error } = await withTimeout(
+        supabase
+          .from('periods')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', id)
+          .eq('user_id', userId),
+        6000,
+        'deleteRemotePeriod'
+      );
       if (error) {
         console.error('Error in deleteRemotePeriod:', error);
         set({ status: 'offline' });

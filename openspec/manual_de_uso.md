@@ -1,6 +1,5 @@
 # DelaySpend — Manual de Uso y Guía Operativa Completa
 
-> **Versión:** 1.5.0 · **Última actualización:** Septiembre 2026  
 > **Versión:** 1.6.0 · **Última actualización:** Septiembre 2026  
 > **Propósito del documento:** Servir como manual integral de referencia para usuarios, desarrolladores y agentes de inteligencia artificial. Explica en detalle el qué, el porqué, el cómo y las reglas de negocio de cada funcionalidad de DelaySpend.
 
@@ -46,7 +45,6 @@ Muchos estudiantes o personas jóvenes viven con dinero transferido por sus padr
   2. **Gastos personales legítimos pero sensibles:** Hay gastos importantes para el usuario (como peluquería, tratamientos capilares, estética, ropa o salidas) que frente a los padres pueden generar preguntas incómodas o reproches innecesarios.
   3. **Compras para la casa:** Si vas a la verdulería o al supermercado y comprás cosas para la casa de tus padres, ese dinero no es un consumo propio tuyo ni debería ensuciar tu promedio de gasto diario.
 
-DelaySpend resuelve estas tres tensiones de forma elegante: permite **agrupar por períodos de dinero**, **aislar compras para la casa**, **enmascarar rubros sensibles como "Otros Gastos"** y generar un **resumen prolijo para WhatsApp o Excel sin ninguna mención a compras postergadas ni a DelaySpend**, cerrando el total exacto al centavo.
 DelaySpend resuelve estas tres tensiones de forma elegante: permite **agrupar por períodos de dinero**, **aislar compras para la casa**, **enmascarar rubros sensibles como "Otros Gastos"**, **proteger al 100% rubros sensibles como Vicios mediante máscaras contables ficticias**, y generar un **resumen prolijo para WhatsApp o Excel sin ninguna mención a compras postergadas ni a DelaySpend**, cerrando el total exacto al centavo.
 
 ---
@@ -318,7 +316,6 @@ Botones rápidos:
 - **"Todas":** Marca las 4 casillas para analizar la totalidad de los egresos.
 - **"Solo corrientes":** Desmarca fijos, eventuales y casa con un solo clic para ver únicamente en qué rubros se te va la plata del día a día. El gráfico de dona se recalcula en tiempo real.
 
-### 7.3 Selector de Período para Auditoría Histórica
 ### 8.3 Selector de Período para Auditoría Histórica
 Podés tocar el botón de selección de ciclo para examinar:
 - El ciclo actualmente activo.
@@ -327,53 +324,36 @@ Podés tocar el botón de selección de ciclo para examinar:
 
 ---
 
-## 8. Rendición de Cuentas y Exportación para Padres
 ## 9. Rendición de Cuentas y Exportación para Padres
 
 El panel de exportación (accesible desde el ícono de compartir en el Dashboard o el Historial) genera el reporte formal para tus padres.
 
-### 8.1 Cero Menciones a "DelaySpend"
 ### 9.1 Cero Menciones a "DelaySpend"
 Por diseño, **en ningún lugar del texto de WhatsApp ni del archivo CSV aparece la palabra "DelaySpend"**. El reporte se titula simplemente:
 `📊 *Rendición de Gastos*`
 Los padres ven un informe contable limpio, sobrio y profesional.
 
-### 8.2 Menú de Configuración Personalizada (Tuerquita ⚙️)
 ### 9.2 Menú de Configuración Personalizada (Tuerquita ⚙️)
 Al lado del interruptor de rendición unificada hay un botón de tuerquita ⚙️ que despliega las opciones avanzadas del reporte:
 
 1. **Casilla "Mostrar categoría en cada gasto":**
    - Si está marcada: incluye la categoría entre corchetes (ej: `• 15/09: Almuerzo - $6.500 [Comida]`).
-   - Si una categoría está enmascarada por privacidad, se muestra como `[Otros Gastos]`.
+   - Si una categoría está enmascarada por privacidad (ej: Estética), se muestra como `[Otros Gastos]`.
    - Si está desmarcada: muestra solo fecha, concepto y monto (ej: `• 15/09: Almuerzo - $6.500`).
-2. **Casilla "Mostrar etiqueta de naturaleza":**
-   - Agrega o quita las marcas: `[🏠 Para la casa]`, `[🔄 Fijo]`, `[⚡ Eventual]`, `[🛒 Cotidiano]`.
-3. **Casillas individuales de rótulos de naturalezas a mostrar:**
-   - Podés elegir para qué naturalezas querés que figure el rótulo al lado del gasto: Cotidianos, Fijos, Eventuales o Para la casa.
-   - **Nota contable:** Todos los gastos del período se incluyen siempre en el reporte para que la rendición cuadre con exactitud matemática; las casillas solo determinan si el rótulo descriptivo aparece o se oculta al lado de cada ítem.
-   - Si una categoría está enmascarada por privacidad (ej. Estética), se muestra como `[Otros Gastos]`.
-   - Si está desmarcada: muestra solo fecha, concepto y monto.
 2. **Recuadro "Mostrar etiqueta de naturaleza":**
-   - **Interruptor principal:** Habilita o deshabilita los rótulos de naturaleza en el reporte.
-   - **Etiquetas de naturaleza a mostrar (dentro del mismo recuadro):** Podés elegir para qué naturalezas querés que figure el rótulo al lado del gasto: 🛒 Cotidianos, 🔄 Fijos, ⚡ Eventuales o 🏠 Para la casa.
    - **Interruptor maestro:** Habilita o deshabilita los rótulos de naturaleza en el reporte.
    - **Etiquetas de naturaleza a mostrar:** Casillas individuales para 🛒 Cotidiano, 🔄 Fijo, ⚡ Eventual y 🏠 Para la casa.
-   - **Importante:** Aunque desmarques una etiqueta, el gasto **aparece igual en el reporte** si su naturaleza está incluida.
+   - **Importante:** Aunque desmarques una etiqueta, el gasto **aparece igual en el reporte** si su naturaleza está incluida. Las casillas solo determinan si el rótulo descriptivo aparece o se oculta al lado de cada ítem.
 3. **Recuadro "Naturalezas a incluir en el reporte":**
-   - Te permite elegir qué gastos querés incluir o excluir según su naturaleza.
-   - Si desmarcás una naturaleza acá (por ejemplo *Fijos*), esos gastos **no se incluirán en el reporte ni sumarán en el total a rendir**.
    - Permite filtrar qué tipos de gastos querés que figuren en la rendición familiar.
    - Si desmarcás una naturaleza acá (ej: *Fijos*), esos gastos **no se incluirán en el texto ni sumarán en el total a rendir**.
 4. **Modo de Resumen Financiero al final:**
    - **Detalle completo:** Muestra ingreso asignado, total a rendir, saldo disponible remanente y total destinado a la casa.
-   - **Solo total a rendir:** Termina simplemente diciendo:
+   - **Solo total a rendir:** Emite únicamente la línea final con el monto total a reponer:
      `📈 *Total:*`  
-     `• Total a rendir: $48.200`
-5. **Persistencia Automática:** Toda opción que cambies en el menú ⚙️ se guarda automáticamente en tu navegador (`localStorage`), de modo que tus preferencias quedan listas para la próxima vez.
-   - **Solo total a rendir:** Emite únicamente la línea final con el monto total a reponer.
-5. **Persistencia Automática:** Toda opción que cambies en el menú ⚙️ se guarda automáticamente en `localStorage` (`delayspend_parent_export_config_v1`).
+     `• Total a rendir: $48.200,00`
+5. **Persistencia Automática:** Toda opción que cambies en el menú ⚙️ se guarda automáticamente en `localStorage` (`delayspend_parent_export_config_v1`), de modo que tus preferencias quedan listas para la próxima vez.
 
-### 8.3 Ejemplo de Reporte Generado para WhatsApp
 ### 9.3 Ejemplo de Reporte Generado para WhatsApp
 ```text
 📊 *Rendición de Gastos*
@@ -389,21 +369,17 @@ Al lado del interruptor de rendición unificada hay un botón de tuerquita ⚙�
 
 📈 *Resumen Financiero:*
 • Ingreso asignado al período: $80.000,00
-• Total a rendir / reponer: $69.700,00
-• Saldo disponible remanente: $10.300,00
 • Total a rendir / reponer: $71.900,00
 • Saldo disponible remanente: $8.100,00
 🏠 Total destinado a la casa: $28.000,00
 ```
 *(Notar cómo la compra de puchos no aparece, el alfajor de $2.200 actúa como máscara contable cerrando la suma, y el tratamiento de estética figura inocuamente como Otros Gastos).*
 
-### 8.4 Exportación CSV para Microsoft Excel
 ### 9.4 Exportación CSV para Microsoft Excel
 El archivo CSV descargado incluye codificación **UTF-8 BOM (`\uFEFF`)** obligatoria, lo que garantiza que las tildes, caracteres especiales (`ñ`, `$`) y columnas abran a la perfección en Excel para Windows, macOS y Google Sheets sin deformarse.
 
 ---
 
-## 9. Sincronización en la Nube y Uso Multi-Dispositivo
 ## 10. Sincronización en la Nube y Uso Multi-Dispositivo
 
 DelaySpend funciona bajo un modelo **Local-First Híbrido**:
@@ -421,20 +397,27 @@ Dispositivo Móvil (iPhone/Android)              Supabase Cloud (PostgreSQL)    
                                                             │                                           pantalla en vivo
 ```
 
-### 9.1 Registro de Cuenta Instantáneo (Sin Esperas de Email)
 ### 10.1 Registro de Cuenta Instantáneo (Sin Esperas de Email)
 Para evitar el límite de 2 emails por hora del plan gratuito de Supabase, la base de datos cuenta con un trigger PL/pgSQL (`auto_confirm_user`) que auto-confirma la cuenta en el acto. Podés registrarte con tu correo y contraseña e iniciar sesión inmediatamente sin esperar confirmaciones.
 
-### 9.2 Trabajo 100% Offline
 ### 10.2 Trabajo 100% Offline
 Si estás en el subte o en un lugar sin señal:
 - Podés cargar gastos, editar o consultar tu dinero normalmente.
 - Todo se escribe en el almacenamiento local de tu navegador.
 - En cuanto el dispositivo recupera conexión, el motor de sincronización sube los cambios pendientes a la nube automáticamente.
 
+### 10.3 Resiliencia en iOS / iPhone (WebKit) y Reconexión Inteligente
+Los dispositivos iOS (Safari y PWAs agregadas a la pantalla de inicio) presentan una particularidad técnica: cuando el teléfono se bloquea, entra en reposo o pierde cobertura celular momentáneamente, el kernel congela las conexiones TCP existentes dejándolas en un estado "medio abierto" (*half-open*). En navegadores tradicionales sin protección, esto provocaba que una sincronización quedara esperando indefinidamente una respuesta de red que nunca llegaba, mostrando un cartel perpetuo de *"Sincronizando..."*.
+
+DelaySpend resuelve esto mediante una arquitectura multicapa de alta tolerancia a fallos:
+1. **Timeouts Estrictos (Fail-Fast):** Todas las consultas de subida y descarga a Supabase están envueltas en un límite de tiempo de 8 segundos (y 6 segundos en operaciones puntuales). Si la red se cuelga o no responde, la petición se cancela limpiamente en lugar de trabar la aplicación.
+2. **Watchdog de Seguridad (10 segundos):** Un temporizador guardián monitorea el estado global de la sincronización. Si por cualquier motivo el sistema permanece más de 10 segundos en estado `"syncing"`, el watchdog interviene de forma automática, destraba la interfaz y restaura el estado a `"synced"` (si hay señal) o `"offline"`.
+3. **Mutex de Sincronización (Anti-Carrera):** Cuando el iPhone recupera internet, el sistema operativo dispara múltiples eventos al mismo tiempo (`online`, `visibilitychange`, `focus`). DelaySpend los unifica mediante una pausa amortiguadora (*debounce* de 200–400ms) y un bloqueo Mutex que asegura que nunca corran dos sincronizaciones a la vez.
+4. **Reconexión Activa de WebSockets:** Al regresar a la aplicación, se despierta explícitamente el canal Realtime con `supabase.realtime.connect()`, restableciendo la recepción de cambios en vivo sin demoras.
+5. **Reintento Táctil Manual en la Cabecera:** El badge de sincronización en la parte superior derecha (`"Sincronizado"`, `"Sincronizando..."` o `"Sin conexión"`) es ahora interactivo. Si querés forzar una sincronización manual en cualquier momento, basta con tocar el badge: la app disparará una sincronización completa en segundo plano y te avisará con una notificación Toast.
+
 ---
 
-## 10. Preguntas Frecuentes y Resolución de Problemas (FAQ)
 ## 11. Preguntas Frecuentes y Resolución de Problemas (FAQ)
 
 ### ¿Qué pasa si compré un atado de puchos de $1.200 y tengo que rendir gastos a fin de semana?
@@ -442,6 +425,9 @@ Cargalo tranquilamente en la categoría **Vicios** (subcategoría Puchos). Ese g
 
 ### ¿Los gastos ficticios me ensucian mis analíticas o me hacen creer que gasté de más?
 No, en absoluto. Los gastos ficticios están programados para ser completamente ignorados en tus analíticas personales: no suman al gasto real de tus métricas, no afectan el cálculo de tu promedio diario corriente, no consumen tus metas de presupuesto y no tocan el ahorro acumulado de períodos cerrados. Son 100% invisibles para tus métricas personales y solo cobran vida al generar el reporte de padres.
+
+### ¿Por qué en mi iPhone la app a veces se quedaba en "Sincronizando..." al volver el internet?
+En iOS, cuando el teléfono se bloquea o pierde señal en la calle y vuelve a conectarse, Safari mantiene conexiones zombis que nunca terminaban de responder. En la versión 1.6.0 implementamos timeouts estrictos, un watchdog guardián de 10 segundos y deduplicación de reconexión. Ahora la sincronización se completa en menos de un segundo o, si la red es inestable, se destraba sola de inmediato. Además, podés tocar el badge de la cabecera cuando quieras para forzar una sincronización manual al instante.
 
 ### ¿Qué pasa si cargo un gasto en mi celular y no aparece en mi computadora?
 Verificá en la cabecera que ambos dispositivos tengan la sesión iniciada con la misma cuenta. Si en uno dice "Sincronizar", tocá ahí e ingresá con tu correo. Una vez iniciada la sesión, la sincronización es automática vía WebSockets.
@@ -456,6 +442,5 @@ En el **modo unificado para padres**, todos los movimientos cargados justifican 
 Porque le asignaste la naturaleza **"Para la casa" (`house`)**. El sistema aísla inteligentemente ese monto de tu ritmo de consumo personal para no penalizar tus métricas de disciplina individual, pero sí lo descuenta de tu saldo remanente y lo incluye en la rendición de cuentas.
 
 ---
-*Fin del Manual de Uso — DelaySpend v1.5.0*
 
 *Fin del Manual de Uso — DelaySpend v1.6.0*
