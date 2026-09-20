@@ -82,11 +82,14 @@ export function generateWhatsAppReport(
 
     lines.push(STRINGS.EXPORT_WHATSAPP_UNIFIED_SECTION);
 
-    if (filtered.length === 0) {
+    const expensesToReport = filtered.filter((e) => e.type !== 'income');
+    const extraIncomes = filtered.filter((e) => e.type === 'income');
+
+    if (expensesToReport.length === 0) {
       lines.push('_(Sin gastos registrados en el período)_');
     } else {
       const maskedIds = options?.maskedCategoryIds ?? useCategoryStore.getState().parentMaskedCategoryIds;
-      const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+      const sorted = [...expensesToReport].sort((a, b) => b.date.localeCompare(a.date));
       for (const exp of sorted) {
         const cat = findCategoryById(exp.categoryId);
         const isMasked = unified && maskedIds.includes(exp.categoryId);
@@ -118,8 +121,18 @@ export function generateWhatsAppReport(
     }
     lines.push('');
 
-    // Resumen Financiero Unificado
-    const totalUnifiedAmount = filtered.reduce(
+    // Sección informativa de ingresos extra si los hay
+    if (extraIncomes.length > 0 && summaryMode === 'full') {
+      lines.push('📥 *Ingresos extra recibidos en el período:*');
+      const sortedIncomes = [...extraIncomes].sort((a, b) => b.date.localeCompare(a.date));
+      for (const inc of sortedIncomes) {
+        lines.push(`• ${formatDayMonth(inc.date)}: ${inc.description} - +${formatCurrency(inc.amount)}`);
+      }
+      lines.push('');
+    }
+
+    // Resumen Financiero Unificado (solo gastos a rendir)
+    const totalUnifiedAmount = expensesToReport.reduce(
       (sum, e) => sum + (e.type === 'real' ? e.amount + (e.savedExtraAmount || 0) : e.amount),
       0
     );
@@ -129,15 +142,25 @@ export function generateWhatsAppReport(
       lines.push(`• Total a rendir: ${formatCurrency(totalUnifiedAmount)}`);
     } else {
       lines.push(STRINGS.EXPORT_WHATSAPP_SUMMARY_SECTION);
-      if (metrics.initialIncome > 0) {
-        lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(metrics.initialIncome)}`);
+      const baseIncome = metrics.baseIncome;
+      const extraIncome = metrics.extraIncome;
+      const totalIncome = metrics.initialIncome; // baseIncome + extraIncome
+
+      if (totalIncome > 0) {
+        if (extraIncome > 0 && baseIncome > 0) {
+          lines.push(`• Ingreso base asignado: ${formatCurrency(baseIncome)}`);
+          lines.push(`• Ingresos extra recibidos: +${formatCurrency(extraIncome)}`);
+          lines.push(`• Ingreso total disponible: ${formatCurrency(totalIncome)}`);
+        } else {
+          lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(totalIncome)}`);
+        }
       }
       lines.push(`${STRINGS.EXPORT_WHATSAPP_UNIFIED_TOTAL} ${formatCurrency(totalUnifiedAmount)}`);
-      if (metrics.initialIncome > 0) {
-        const remaining = metrics.initialIncome - totalUnifiedAmount;
+      if (totalIncome > 0) {
+        const remaining = totalIncome - totalUnifiedAmount;
         lines.push(`${STRINGS.EXPORT_WHATSAPP_REMAINING} ${formatCurrency(remaining)}`);
       }
-      const totalHouseUnified = filtered
+      const totalHouseUnified = expensesToReport
         .filter((e) => e.nature === 'house')
         .reduce((sum, e) => sum + (e.type === 'real' ? e.amount + (e.savedExtraAmount || 0) : e.amount), 0);
       if (totalHouseUnified > 0) {
@@ -153,9 +176,11 @@ export function generateWhatsAppReport(
     return lines.join('\n');
   }
 
-  // Modo Detallado: distingue gastos reales de compras postergadas
-  const realExpenses = filtered.filter((e) => e.type === 'real');
-  const delayedExpenses = filtered.filter((e) => e.type === 'delayed');
+  // Modo Detallado: distingue gastos reales, compras postergadas e ingresos extra
+  const expensesToReport = filtered.filter((e) => e.type !== 'income');
+  const realExpenses = expensesToReport.filter((e) => e.type === 'real');
+  const delayedExpenses = expensesToReport.filter((e) => e.type === 'delayed');
+  const extraIncomes = filtered.filter((e) => e.type === 'income');
 
   // Sección de Gastos Reales
   lines.push(STRINGS.EXPORT_WHATSAPP_REAL_SECTION);
@@ -191,10 +216,28 @@ export function generateWhatsAppReport(
   }
   lines.push('');
 
+  // Sección de Ingresos Extra (si existen)
+  if (extraIncomes.length > 0) {
+    lines.push('💵 *Ingresos Extra Registrados:*');
+    const sortedIncomes = [...extraIncomes].sort((a, b) => b.date.localeCompare(a.date));
+    for (const inc of sortedIncomes) {
+      lines.push(
+        `• ${formatDayMonth(inc.date)}: ${inc.description} - +${formatCurrency(inc.amount)}`
+      );
+    }
+    lines.push('');
+  }
+
   // Sección de Resumen Financiero
   lines.push(STRINGS.EXPORT_WHATSAPP_SUMMARY_SECTION);
   if (metrics.initialIncome > 0) {
-    lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(metrics.initialIncome)}`);
+    if (metrics.extraIncome > 0 && metrics.baseIncome > 0) {
+      lines.push(`• Ingreso base asignado: ${formatCurrency(metrics.baseIncome)}`);
+      lines.push(`• Ingresos extra recibidos: +${formatCurrency(metrics.extraIncome)}`);
+      lines.push(`• Ingreso total disponible: ${formatCurrency(metrics.initialIncome)}`);
+    } else {
+      lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(metrics.initialIncome)}`);
+    }
   }
   lines.push(`${STRINGS.EXPORT_WHATSAPP_TOTAL_REAL} ${formatCurrency(metrics.totalReal)}`);
   lines.push(`${STRINGS.EXPORT_WHATSAPP_TOTAL_DELAYED} ${formatCurrency(metrics.totalDelayed)}`);
@@ -204,8 +247,8 @@ export function generateWhatsAppReport(
     lines.push(`${STRINGS.EXPORT_WHATSAPP_REMAINING} ${formatCurrency(metrics.remainingBalance)}`);
   }
 
-  const totalHouseDetailed = filtered
-    .filter((e) => e.nature === 'house')
+  const totalHouseDetailed = expensesToReport
+    .filter((e) => e.type === 'real' && e.nature === 'house')
     .reduce((sum, e) => sum + e.amount, 0);
   if (totalHouseDetailed > 0) {
     lines.push(`🏠 Total destinado a la casa: ${formatCurrency(totalHouseDetailed)}`);
@@ -252,7 +295,7 @@ export function downloadExpensesCSV(
   };
 
   const headers = unified
-    ? ['Fecha', 'Monto', 'Categoría', 'Concepto / Detalle', 'Para la Casa']
+    ? ['Fecha', 'Tipo', 'Monto', 'Categoría', 'Concepto / Detalle', 'Para la Casa']
     : [
         'Fecha',
         'Tipo',
@@ -273,6 +316,8 @@ export function downloadExpensesCSV(
     const catName = isMasked ? 'Otros Gastos' : cat.name;
 
     if (unified) {
+      const isIncome = exp.type === 'income';
+      const tipo = isIncome ? 'Ingreso Extra' : 'Gasto';
       const totalAmount =
         exp.type === 'real'
           ? exp.amount + (exp.savedExtraAmount || 0)
@@ -280,8 +325,9 @@ export function downloadExpensesCSV(
 
       return [
         exp.date,
+        tipo,
         totalAmount.toFixed(2),
-        options?.showCategory === false ? '' : catName,
+        options?.showCategory === false ? '' : (isIncome ? 'Ingreso' : catName),
         exp.description,
         exp.nature === 'house' ? 'Sí' : 'No',
       ]
@@ -289,7 +335,13 @@ export function downloadExpensesCSV(
         .join(',');
     }
 
-    const tipo = exp.type === 'real' ? 'Gasto Real' : 'Compra Postergada';
+    const tipo =
+      exp.type === 'real'
+        ? 'Gasto Real'
+        : exp.type === 'income'
+        ? 'Ingreso Extra'
+        : 'Compra Postergada';
+
     let transferStatus = 'No aplica';
     if (exp.type === 'delayed') {
       transferStatus = exp.transferredAt ? 'Transferido' : 'Pendiente de transferir';
@@ -301,7 +353,7 @@ export function downloadExpensesCSV(
       exp.date,
       tipo,
       exp.amount.toFixed(2),
-      cat.name,
+      exp.type === 'income' ? 'Ingreso' : cat.name,
       exp.description,
       exp.nature === 'house' ? 'Sí' : 'No',
       transferStatus,

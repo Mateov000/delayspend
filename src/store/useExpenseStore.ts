@@ -280,7 +280,7 @@ export const useExpenseStore = create<ExpenseState>()(
               installmentTotal: updatedInstallmentTotal,
               isRecurring: updatedIsRecurring,
               nature: updatedNature,
-              subcategory: updatedCat === 'vices' ? updatedSubcategory : undefined,
+              subcategory: updatedSubcategory ? updatedSubcategory : undefined,
               isFictitious: updatedIsFictitious,
               updatedAt: now,
             };

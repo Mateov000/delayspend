@@ -133,17 +133,17 @@ export function AnalyticsView({
     const allInitialIncome = periods
       .filter((p) => !p.deletedAt)
       .reduce((sum, p) => sum + (p.initialIncome || 0), 0);
-    const allExtraIncomes = expenses
-      .filter((e) => e.type === 'income' && !e.isFictitious)
+    const allExtraIncomes = cleanExpenses
+      .filter((e) => e.type === 'income')
       .reduce((sum, e) => sum + e.amount, 0);
-    const expenseCount = expenses.filter((e) => e.type !== 'income' && !e.isFictitious).length;
+    const expenseCount = cleanExpenses.filter((e) => e.type !== 'income').length;
 
     return {
       totalIncome: allInitialIncome + allExtraIncomes,
       expenseCount,
       isAll: true,
     };
-  }, [activePeriod, filteredExpenses, periods, expenses]);
+  }, [activePeriod, filteredExpenses, periods, cleanExpenses]);
 
   const activeNaturesCount = Object.values(selectedNatures).filter(Boolean).length;
 

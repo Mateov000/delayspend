@@ -37,6 +37,11 @@ export function ExpenseHistoryGroup({
               +{formatCurrency(group.subtotalDelayed)}
             </span>
           )}
+          {group.subtotalIncome > 0 && (
+            <span className="text-teal-600 font-bold">
+              +{formatCurrency(group.subtotalIncome)}
+            </span>
+          )}
         </div>
       </div>
 

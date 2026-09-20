@@ -378,8 +378,14 @@ Al lado del interruptor de rendición unificada hay un botón de tuerquita ⚙�
      `• Total a rendir: $48.200,00`
 5. **Persistencia Automática:** Toda opción que cambies en el menú ⚙️ se guarda automáticamente en `localStorage` (`delayspend_parent_export_config_v1`), de modo que tus preferencias quedan listas para la próxima vez.
 
-### 8.3 Ejemplo de Reporte Generado para WhatsApp
-### 9.3 Ejemplo de Reporte Generado para WhatsApp
+### 9.3 Tratamiento de Ingresos Extra en la Rendición
+Si durante el período recibiste dinero adicional (ej: un reintegro, un laburo freelance o plata extra):
+- **Nunca se cuentan como gastos:** No aparecen en el listado de gastos a rendir ni se suman al total a reponer.
+- **Transparencia en el Resumen:** El resumen financiero te muestra el ingreso base recibido, los ingresos extra adicionales y el total disponible.
+- **Sección Informativa:** En el texto de WhatsApp figura una sección `📥 *Ingresos extra recibidos en el período:*`.
+- **En el CSV:** Cada movimiento cuenta con la columna `Tipo`, distinguiendo inequívocamente `Gasto` de `Ingreso Extra`.
+
+### 9.4 Ejemplo de Reporte Generado para WhatsApp
 ```text
 📊 *Rendición de Gastos*
 🗓 *Período:* Período 2 (01/09 al Presente)
@@ -392,19 +398,21 @@ Al lado del interruptor de rendición unificada hay un botón de tuerquita ⚙�
 • 12/09: Tratamiento personal - $18.000 [Otros Gastos] ⚡ [Eventual]
 • 10/09: Abono transporte - $9.000 [Transporte] 🔄 [Fijo]
 
+📥 *Ingresos extra recibidos en el período:*
+• 11/09: Honorarios diseño freelance - +$15.000,00
+
 📈 *Resumen Financiero:*
-• Ingreso asignado al período: $80.000,00
-• Total a rendir / reponer: $69.700,00
-• Saldo disponible remanente: $10.300,00
+• Ingreso base asignado: $80.000,00
+• Ingresos extra recibidos: +$15.000,00
+• Ingreso total disponible: $95.000,00
 • Total a rendir / reponer: $71.900,00
-• Saldo disponible remanente: $8.100,00
+• Saldo disponible remanente: $23.100,00
 🏠 Total destinado a la casa: $28.000,00
 ```
-*(Notar cómo la compra de puchos no aparece, el alfajor de $2.200 actúa como máscara contable cerrando la suma, y el tratamiento de estética figura inocuamente como Otros Gastos).*
+*(Notar cómo la compra de puchos no aparece, el alfajor de $2.200 actúa como máscara contable cerrando la suma, el tratamiento de estética figura inocuamente como Otros Gastos, y el ingreso extra de $15.000 no se confunde con un gasto sino que amplía el saldo disponible remanente).*
 
-### 8.4 Exportación CSV para Microsoft Excel
-### 9.4 Exportación CSV para Microsoft Excel
-El archivo CSV descargado incluye codificación **UTF-8 BOM (`\uFEFF`)** obligatoria, lo que garantiza que las tildes, caracteres especiales (`ñ`, `$`) y columnas abran a la perfección en Excel para Windows, macOS y Google Sheets sin deformarse.
+### 9.5 Exportación CSV para Microsoft Excel
+El archivo CSV descargado incluye codificación **UTF-8 BOM (`\uFEFF`)** obligatoria, lo que garantiza que las tildes, caracteres especiales (`ñ`, `$`) y columnas abran a la perfección en Excel para Windows, macOS y Google Sheets sin deformarse. Además, cuenta con la columna `Tipo` (`Gasto`, `Ingreso Extra`, `Compra Postergada`) para que cualquier fórmula de suma en Excel distinga los ingresos de los egresos sin errores.
 
 ---
 

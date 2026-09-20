@@ -75,6 +75,7 @@ export interface ExpenseGroup {
   items: Expense[];
   subtotalReal: number;
   subtotalDelayed: number;
+  subtotalIncome: number;
 }
 
 export function groupExpensesByDate(expenses: Expense[]): ExpenseGroup[] {
@@ -102,6 +103,7 @@ export function groupExpensesByDate(expenses: Expense[]): ExpenseGroup[] {
   for (const [date, items] of groupsMap.entries()) {
     let subtotalReal = 0;
     let subtotalDelayed = 0;
+    let subtotalIncome = 0;
 
     for (const item of items) {
       if (item.type === 'real') {
@@ -113,6 +115,10 @@ export function groupExpensesByDate(expenses: Expense[]): ExpenseGroup[] {
         }
       } else if (item.type === 'delayed') {
         subtotalDelayed += item.amount;
+      } else if (item.type === 'income') {
+        if (!item.isFictitious) {
+          subtotalIncome += item.amount;
+        }
       }
     }
 
@@ -122,6 +128,7 @@ export function groupExpensesByDate(expenses: Expense[]): ExpenseGroup[] {
       items,
       subtotalReal,
       subtotalDelayed,
+      subtotalIncome,
     });
   }
 

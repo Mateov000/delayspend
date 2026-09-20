@@ -107,7 +107,7 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
   const slices = useMemo(() => buildSlices(expenses, customCategories), [expenses, customCategories]);
 
   const totalReal = useMemo(
-    () => expenses.filter((e) => e.type === 'real').reduce((s, e) => s + e.amount, 0),
+    () => expenses.filter((e) => e.type === 'real' && !e.isFictitious).reduce((s, e) => s + e.amount, 0),
     [expenses]
   );
 

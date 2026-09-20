@@ -1071,15 +1071,17 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 4. **Configuración Dinámica (Tuerquita ⚙️):**
 2. **Exclusión Incondicional de Vicios:** Si `e.categoryId === 'vices'`, el gasto **nunca** se incluye en la rendición de padres (`unified: true`). Cero riesgo de exposición.
 3. **Inclusión de Gastos Ficticios:** Los movimientos con `isFictitious === true` se listan como gastos ordinarios con su categoría nominal (ej: Comida) y suman al total a rendir, absorbiendo exactamente el dinero de los vicios.
-4. **Censura / Enmascaramiento Automático:** Las categorías marcadas en `parentMaskedCategoryIds` (por ejemplo, *Estética*) se transforman en *"Otros Gastos"* en el reporte de WhatsApp y CSV, preservando el monto exacto.
-5. **Aislamiento de Compras de la Casa:** Si el gasto tiene `nature === 'house'`, se le anexa el tag `[🏠 Para la casa]` y al pie del reporte se emite el total destinado a la familia.
-6. **Configuración Dinámica (Tuerquita ⚙️):**
+4. **Tratamiento Estricto de Ingresos Extra (`type === 'income'`):**
+   - **Nunca se cuentan como gastos:** Los ingresos de dinero recibidos no figuran en el listado de gastos a rendir ni se suman a `totalUnifiedAmount`.
+   - **Desglose en Resumen Financiero:** Si hubo ingresos extra, el reporte detalla el ingreso base asignado, los ingresos extra recibidos y el ingreso total disponible, calculando el saldo remanente exacto (total disponible menos total a rendir).
+   - **Sección Informativa Opcional:** En WhatsApp unificado se lista una sección independiente `📥 *Ingresos extra recibidos en el período:*`. En el CSV, se identifican unívocamente con `Tipo: 'Ingreso Extra'`.
+5. **Censura / Enmascaramiento Automático:** Las categorías marcadas en `parentMaskedCategoryIds` (por ejemplo, *Estética*) se transforman en *"Otros Gastos"* en el reporte de WhatsApp y CSV, preservando el monto exacto.
+6. **Aislamiento de Compras de la Casa:** Si el gasto tiene `nature === 'house'`, se le anexa el tag `[🏠 Para la casa]` y al pie del reporte se emite el total destinado a la familia.
+7. **Configuración Dinámica (Tuerquita ⚙️):**
    - Switch de categoría: `showCategory` (booleano).
    - Switch de naturaleza: `showNature` (booleano).
-   - Rótulos de naturalezas visibles: `includedNatures` (diccionario por `ExpenseNature`). Importante: las casillas determinan si se muestra el rótulo al lado de cada gasto; todos los movimientos del período continúan figurando en el reporte para garantizar consistencia contable.
    - Recuadro "Mostrar etiqueta de naturaleza":
      - Switch maestro: `showNature` (booleano).
-     - Sub-opciones de etiquetas: `showNatureTags` (diccionario por `ExpenseNature`). Elige de qué naturalezas mostrar el rótulo (`[🛒 Cotidiano]`, `[🔄 Fijo]`, `[⚡ Eventual]`, `[🏠 Para la casa]`). Si una etiqueta se desmarca, el gasto aparece igual en el reporte.
      - Sub-opciones de etiquetas: `showNatureTags` (`daily`, `fixed`, `eventual`, `house`). Determina de qué naturalezas mostrar el rótulo al lado de cada ítem.
    - Recuadro "Naturalezas a incluir en el reporte":
      - Filtro de naturalezas: `includedNatures` (diccionario por `ExpenseNature`). Elige qué naturalezas de gasto se incluyen en la rendición; si se desmarca una, esos gastos quedan excluidos del reporte y de la suma total.
