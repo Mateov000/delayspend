@@ -53,10 +53,16 @@ export function AnalyticsView({
 
   const toggleNature = (nature: ExpenseNature) => {
     setSelectedNatures((prev) => {
+      const isOnlyOneActive = Object.values(prev).filter(Boolean).length === 1 && prev[nature];
+      if (isOnlyOneActive) {
+        // Si el usuario toca la única naturaleza activa, reactivamos todas para evitar bloqueo
+        return { daily: true, fixed: true, eventual: true, house: true };
+      }
       const updated = { ...prev, [nature]: !prev[nature] };
       // Asegurar que al menos una naturaleza quede seleccionada
       const hasAny = Object.values(updated).some(Boolean);
       return hasAny ? updated : prev;
+      return hasAny ? updated : { ...prev, [nature]: true };
     });
   };
 
@@ -450,11 +456,13 @@ export function AnalyticsView({
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 min-w-0">
           {/* Cotidianos */}
           <button
             type="button"
             onClick={() => toggleNature('daily')}
             className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer min-w-0 gap-1 ${
               selectedNatures.daily
                 ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 shadow-2xs font-bold'
                 : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
@@ -462,6 +470,8 @@ export function AnalyticsView({
           >
             <div className="flex items-center gap-1.5 truncate">
               <span>🛒</span>
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+              <span className="shrink-0">🛒</span>
               <span className="truncate">Cotidianos</span>
             </div>
             <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px] ${
@@ -476,6 +486,7 @@ export function AnalyticsView({
             type="button"
             onClick={() => toggleNature('fixed')}
             className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer min-w-0 gap-1 ${
               selectedNatures.fixed
                 ? 'bg-blue-50/80 border-blue-300 text-blue-950 shadow-2xs font-bold'
                 : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
@@ -483,6 +494,8 @@ export function AnalyticsView({
           >
             <div className="flex items-center gap-1.5 truncate">
               <span>🔄</span>
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+              <span className="shrink-0">🔄</span>
               <span className="truncate">Fijos</span>
             </div>
             <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px] ${
@@ -497,6 +510,7 @@ export function AnalyticsView({
             type="button"
             onClick={() => toggleNature('eventual')}
             className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer min-w-0 gap-1 ${
               selectedNatures.eventual
                 ? 'bg-amber-50/80 border-amber-300 text-amber-950 shadow-2xs font-bold'
                 : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
@@ -504,6 +518,8 @@ export function AnalyticsView({
           >
             <div className="flex items-center gap-1.5 truncate">
               <span>⚡</span>
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+              <span className="shrink-0">⚡</span>
               <span className="truncate">Eventuales</span>
             </div>
             <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px] ${
@@ -518,6 +534,7 @@ export function AnalyticsView({
             type="button"
             onClick={() => toggleNature('house')}
             className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer min-w-0 gap-1 ${
               selectedNatures.house
                 ? 'bg-purple-50/80 border-purple-300 text-purple-950 shadow-2xs font-bold'
                 : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
@@ -525,6 +542,8 @@ export function AnalyticsView({
           >
             <div className="flex items-center gap-1.5 truncate">
               <span>🏠</span>
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+              <span className="shrink-0">🏠</span>
               <span className="truncate">Casa</span>
             </div>
             <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px] ${

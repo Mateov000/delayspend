@@ -432,6 +432,23 @@ Al registrar una **Compra Postergada (DelaySpend)**, ahora disponés de exactame
 - **Etiquetas (Tags):** Podés asignarle etiquetas libres como `#gustito`, `#antojo`, `#ahorro`.
 - **Historial y Badges:** En la pantalla principal verás las etiquetas de naturaleza (`Para la casa`, `Eventual`, `Fijo`) junto al icono de compra postergada para un orden visual total.
 
+---
+
+## 12. 🧭 Auditoría de Gastos por Naturaleza
+
+En la tarjeta **Naturaleza de Gasto** de Analíticas podés auditar cómo se divide tu dinero según el tipo de necesidad:
+1. **Pastillas Desplegables para Todas las Naturalezas:**
+   - Podés tocar **cualquiera de las 4 pastillas** (`Cotidianos`, `Fijos`, `Eventuales`, `Casa`).
+   - Al tocarla, se expande hacia abajo un desglose detallado con todos los gastos y compras postergadas de esa naturaleza, ordenados por fecha.
+   - Podés cerrarlo tocando la cruz (✖) o volviendo a tocar la pastilla.
+2. **Diseño Compacto y Anti-Desbordes:**
+   - La tarjeta está optimizada para que los textos largos y montos elevados nunca se escapen de los bordes de la pantalla en ningún celular.
+   - En el desglose, las descripciones largas se truncan limpiamente (`...`) para que el importe a la derecha siempre se mantenga perfectamente visible.
+
+---
+
+## 13. Sincronización en la Nube y Uso Multi-Dispositivo
+
 DelaySpend funciona bajo un modelo **Local-First Híbrido**:
 
 ```

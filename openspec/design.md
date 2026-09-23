@@ -1113,7 +1113,20 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 
 ---
 
-## 11. 📱 Reglas de Accesibilidad y UI Mobile-First
+## 11. 🧭 Tarjeta de Auditoría por Naturaleza de Gasto (`ExpenseNatureCard`)
+
+1. **Interactividad Universal (4 Naturalezas):**
+   - Las 4 pastillas (`Cotidianos`, `Fijos`, `Eventuales`, `Para la casa`) son interactivas y desplegables con un toque.
+   - Al tocar cualquiera de ellas, se expande un desglose detallado con todos los movimientos (gastos reales y compras postergadas) pertenecientes a esa naturaleza.
+   - Cuentan con indicador de estado (`ChevronDown`/`ChevronUp`), contador de movimientos y anillo de selección activo.
+2. **Prevención de Desbordes y Responsive Design:**
+   - Montos y textos protegidos con `min-w-0`, `truncate` y `line-clamp` para anchos móviles estrechos (iPhone SE 375px).
+   - Desglose con scroll interno acotado (`max-h-60 overflow-y-auto`) para no alargar desmedidamente la tarjeta.
+   - Truncado riguroso de descripciones en Flexbox con `min-w-0 flex-1` para que el monto a la derecha nunca sea expulsado de la pantalla.
+
+---
+
+## 12. 📱 Reglas de Accesibilidad y UI Mobile-First
 
 1. **Área táctil mínima:** Todo elemento interactivo cuenta con un área táctil mínima de 44×44px (`min-h-[44px]`).
 2. **Operatividad con una sola mano:** La interacción principal ocurre mediante `BottomSheet` anclados a la parte inferior de la pantalla.
