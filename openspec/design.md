@@ -1113,6 +1113,7 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 
 ---
 
+## 11. 📱 Reglas de Accesibilidad y UI Mobile-First
 ## 11. 🧭 Tarjeta de Auditoría por Naturaleza de Gasto (`ExpenseNatureCard`)
 
 1. **Interactividad Universal (4 Naturalezas):**
