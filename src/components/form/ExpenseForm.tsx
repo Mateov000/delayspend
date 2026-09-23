@@ -174,8 +174,8 @@ export function ExpenseForm({
       installmentGroupId: !isFictitious && type === 'real' && hasInstallments ? (initialValues?.installmentGroupId ?? null) : null,
       installmentNumber: !isFictitious && type === 'real' && hasInstallments ? (initialValues?.installmentNumber ?? 1) : null,
       installmentTotal: !isFictitious && type === 'real' && hasInstallments ? installmentCount : null,
-      isRecurring: type === 'real' && nature === 'fixed' ? true : undefined,
-      nature: type === 'real' ? nature : undefined,
+      isRecurring: type !== 'income' && nature === 'fixed' ? true : undefined,
+      nature: type !== 'income' ? nature : undefined,
       subcategory: cleanSubcategory ? cleanSubcategory : undefined,
       isFictitious: isFictitious || undefined,
     });
@@ -756,8 +756,8 @@ export function ExpenseForm({
         </div>
       )}
 
-      {/* Selector de Naturaleza de Gasto: Cotidiano / Fijo / Eventual / Para la casa (solo en gastos reales) */}
-      {type === 'real' && (
+      {/* Selector de Naturaleza de Gasto: Cotidiano / Fijo / Eventual / Para la casa (para gastos reales y compras postergadas) */}
+      {type !== 'income' && (
         <div className="flex flex-col gap-2 p-3 bg-slate-50/80 border border-slate-200/80 rounded-2xl">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">

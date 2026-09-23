@@ -75,7 +75,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
 
   const rawNature = item.nature;
   let nature: ExpenseNature | undefined = undefined;
-  if (item.type === 'real') {
+  if (item.type === 'real' || item.type === 'delayed') {
     if (rawNature === 'daily' || rawNature === 'fixed' || rawNature === 'eventual' || rawNature === 'house') {
       nature = rawNature;
     } else if (item.isRecurring) {
@@ -84,7 +84,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
       nature = 'daily';
     }
   }
-  const isRecurring = item.type === 'real' ? (nature === 'fixed' || Boolean(item.isRecurring)) : undefined;
+  const isRecurring = (item.type === 'real' || item.type === 'delayed') ? (nature === 'fixed' || Boolean(item.isRecurring)) : undefined;
 
   const subcategory =
     typeof item.subcategory === 'string' && item.subcategory.trim().length > 0
@@ -153,8 +153,8 @@ export const useExpenseStore = create<ExpenseState>()(
           installmentGroupId: input.type === 'real' ? installmentGroupId : null,
           installmentNumber: hasInstallments ? (input.installmentNumber ?? 1) : null,
           installmentTotal: hasInstallments ? input.installmentTotal : null,
-          isRecurring: input.type === 'real' && (input.nature === 'fixed' || input.isRecurring) ? true : undefined,
-          nature: input.type === 'real' ? (input.nature ?? (input.isRecurring ? 'fixed' : 'daily')) : undefined,
+          isRecurring: input.type !== 'income' && (input.nature === 'fixed' || input.isRecurring) ? true : undefined,
+          nature: input.type !== 'income' ? (input.nature ?? (input.isRecurring ? 'fixed' : 'daily')) : undefined,
           subcategory: input.subcategory ? input.subcategory.trim() : undefined,
           isFictitious: Boolean(input.isFictitious) || undefined,
         };
@@ -236,7 +236,7 @@ export const useExpenseStore = create<ExpenseState>()(
                 ? (input.installmentTotal !== undefined ? input.installmentTotal : expense.installmentTotal)
                 : null;
             let updatedNature: ExpenseNature | undefined = expense.nature;
-            if (updatedType === 'real') {
+            if (updatedType !== 'income') {
               if ('nature' in input) {
                 updatedNature = input.nature;
               } else if ('isRecurring' in input) {
@@ -247,7 +247,7 @@ export const useExpenseStore = create<ExpenseState>()(
             }
 
             const updatedIsRecurring =
-              updatedType === 'real'
+              updatedType !== 'income'
                 ? (updatedNature === 'fixed' || ('isRecurring' in input ? Boolean(input.isRecurring) : expense.isRecurring) ? true : undefined)
                 : undefined;
 

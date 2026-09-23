@@ -1066,39 +1066,55 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
    - Al editar el gasto real o su ahorro extra, el movimiento complementario se actualiza automáticamente.
    - Si se desactiva el ahorro o se borra el gasto real, el movimiento complementario se elimina en cascada.
 1. **Eliminación Total de "DelaySpend":** Todos los reportes generados se encabezan con *"Rendición de Gastos"*, sin menciones al nombre de la app ni a compras postergadas.
-2. **Censura / Enmascaramiento Automático:** Las categorías incluidas en `parentMaskedCategoryIds` (por ejemplo, *Estética*) se transforman en *"Otros Gastos"* en el reporte de WhatsApp y CSV, preservando el monto exacto para que la rendición no descuadre.
-3. **Aislamiento de Compras de la Casa:** Si el gasto tiene `nature === 'house'`, se le anexa el tag `[🏠 Para la casa]` y al pie del reporte se emite una línea con el total destinado a la familia.
-4. **Configuración Dinámica (Tuerquita ⚙️):**
 2. **Exclusión Incondicional de Vicios:** Si `e.categoryId === 'vices'`, el gasto **nunca** se incluye en la rendición de padres (`unified: true`). Cero riesgo de exposición.
 3. **Inclusión de Gastos Ficticios:** Los movimientos con `isFictitious === true` se listan como gastos ordinarios con su categoría nominal (ej: Comida) y suman al total a rendir, absorbiendo exactamente el dinero de los vicios.
-4. **Tratamiento Estricto de Ingresos Extra (`type === 'income'`):**
+4. **Censura / Enmascaramiento Automático:** Las categorías marcadas en `parentMaskedCategoryIds` (por ejemplo, *Estética*) se transforman en *"Otros Gastos"* en el reporte de WhatsApp y CSV, preservando el monto exacto.
+5. **Aislamiento de Compras de la Casa:** Si el gasto tiene `nature === 'house'`, se le anexa el tag `[🏠 Para la casa]` y al pie del reporte se emite el total destinado a la familia.
+6. **Tratamiento Estricto de Ingresos Extra (`type === 'income'`):**
    - **Nunca se cuentan como gastos:** Los ingresos de dinero recibidos no figuran en el listado de gastos a rendir ni se suman a `totalUnifiedAmount`.
    - **Desglose en Resumen Financiero:** Si hubo ingresos extra, el reporte detalla el ingreso base asignado, los ingresos extra recibidos y el ingreso total disponible, calculando el saldo remanente exacto (total disponible menos total a rendir).
    - **Sección Informativa Opcional:** En WhatsApp unificado se lista una sección independiente `📥 *Ingresos extra recibidos en el período:*`. En el CSV, se identifican unívocamente con `Tipo: 'Ingreso Extra'`.
-5. **Censura / Enmascaramiento Automático:** Las categorías marcadas en `parentMaskedCategoryIds` (por ejemplo, *Estética*) se transforman en *"Otros Gastos"* en el reporte de WhatsApp y CSV, preservando el monto exacto.
-6. **Aislamiento de Compras de la Casa:** Si el gasto tiene `nature === 'house'`, se le anexa el tag `[🏠 Para la casa]` y al pie del reporte se emite el total destinado a la familia.
 7. **Configuración Dinámica (Tuerquita ⚙️):**
    - Switch de categoría: `showCategory` (booleano).
-   - Switch de naturaleza: `showNature` (booleano).
    - Recuadro "Mostrar etiqueta de naturaleza":
      - Switch maestro: `showNature` (booleano).
      - Sub-opciones de etiquetas: `showNatureTags` (`daily`, `fixed`, `eventual`, `house`). Determina de qué naturalezas mostrar el rótulo al lado de cada ítem.
    - Recuadro "Naturalezas a incluir en el reporte":
-     - Filtro de naturalezas: `includedNatures` (diccionario por `ExpenseNature`). Elige qué naturalezas de gasto se incluyen en la rendición; si se desmarca una, esos gastos quedan excluidos del reporte y de la suma total.
      - Filtro `includedNatures`: Permite excluir naturalezas enteras del reporte y del cálculo total a rendir.
    - Modo de resumen: `summaryMode` (`'full'` o `'total_only'`).
    - Persistencia: Se guarda en `localStorage` bajo `delayspend_parent_export_config_v1` para que las preferencias sean permanentes.
-   - Persistencia: Se guarda en `localStorage` bajo `delayspend_parent_export_config_v1`.
 
-```
 ---
 
-## 6. 📱 Reglas de Accesibilidad y UI Mobile-First
-## 9. 📱 Reglas de Accesibilidad y UI Mobile-First
+## 9. 🍩 Gráfico de Gastos por Categoría y Casilla DelaySpend (`CategoryDonutChart`)
 
-1. **Área táctil mínima:** Todo elemento interactivo (botones, selectores, checkboxes, switches) cuenta con un área táctil mínima de 44×44px (`min-h-[44px]`).
-2. **Operatividad con una sola mano:** La interacción principal (formulario flotante, confirmaciones, hojas de filtros) ocurre mediante `BottomSheet` anclados a la parte inferior de la pantalla.
-3. **Viewport prioritario:** 375px de ancho (iPhone SE / estándar móvil). Se escala progresivamente mediante breakpoints de Tailwind (`sm:`, `md:`).
+1. **Casilla Marcable / Toggle:**
+   - Ubicada en la parte superior del gráfico de dona en la vista de Analíticas.
+   - Etiqueta: *"Incluir DelaySpend"* acompañada de un badge visual `🛡️ Ahorros`.
+   - Estado: `includeDelayed` (`false` por defecto para preservar el enfoque de gastos reales estrictos hasta que el usuario decida activarlo).
+2. **Cálculo de Slices y Totales:**
+   - **Desmarcado (`includeDelayed === false`):** Agrupa únicamente gastos reales no ficticios (`exp.type === 'real' && !exp.isFictitious`). Centro de la dona muestra *"Total gastado"*.
+   - **Marcado (`includeDelayed === true`):** Agrupa gastos reales + compras postergadas (`exp.type === 'delayed'`) + ahorros por opción más barata (`exp.savedExtraAmount`), excluyendo ingresos y gastos ficticios. Centro de la dona muestra *"Total c/ Delay"*.
+3. **Desglose Interactivo por Categoría:**
+   - Al tocar cualquier porción de la dona, se despliega la lista de movimientos de esa categoría.
+   - Si `includeDelayed` está activo, las compras postergadas aparecen identificadas con un badge `🛡️ DelaySpend` y su monto en verde `+formatCurrency(exp.amount)` (reflejando ahorro), mientras los gastos reales muestran `-formatCurrency(exp.amount)`.
+
+---
+
+## 10. 🛡️ Categorización Completa de Compras Postergadas (`delayed`)
+
+1. **Naturaleza del Gasto Desbloqueada:**
+   - El selector de naturaleza (`nature`: Cotidiano, Fijo, Eventual, Para la casa) ahora está habilitado tanto para gastos reales como para compras postergadas (`type !== 'income'`).
+   - Normalizado y sanitizado en `useExpenseStore`, sincronizado con Supabase (`nature`, `is_recurring`).
+2. **Subcategorías, Tags y Recurrencia:**
+   - Las compras postergadas admiten subcategorías dinámicas, etiquetas personalizadas (tags) y marcación como gasto fijo/recurrente (`isRecurring`).
+3. **Identificación en Historial:**
+   - Los ítems `delayed` muestran los badges correspondientes de su naturaleza (`Para la casa`, `Eventual`, `Fijo`) junto con el badge nativo de compra postergada.
+
+---
+
+## 11. 📱 Reglas de Accesibilidad y UI Mobile-First
+
 1. **Área táctil mínima:** Todo elemento interactivo cuenta con un área táctil mínima de 44×44px (`min-h-[44px]`).
 2. **Operatividad con una sola mano:** La interacción principal ocurre mediante `BottomSheet` anclados a la parte inferior de la pantalla.
 3. **Viewport prioritario:** 375px de ancho (iPhone SE / estándar móvil).
@@ -1106,5 +1122,4 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 5. **No Diálogos Nativos:** Prohibido el uso de `window.alert`, `window.confirm` o `window.prompt`. Toda interacción utiliza `ConfirmDialog` o `Toaster`.
 
 ---
-*Fin de la Especificación de Diseño — DelaySpend v1.5.0*
 *Fin de la Especificación de Diseño — DelaySpend v1.6.0*

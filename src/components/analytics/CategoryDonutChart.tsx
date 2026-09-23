@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Expense } from '../../store/types';
 import { useCategoryStore, findCategoryById } from '../../store/useCategoryStore';
 import { formatCurrency, formatDayMonth } from '../../utils/format';
-import { Tag, X } from 'lucide-react';
+import { Tag, X, ShieldCheck } from 'lucide-react';
 
 interface CategoryDonutChartProps {
   expenses: Expense[];
@@ -38,11 +38,21 @@ function getCategoryColor(categoryId: string, index: number): string {
   return CUSTOM_PALETTE[index % CUSTOM_PALETTE.length]!;
 }
 
-function buildSlices(expenses: Expense[], customCategories: import('../../store/types').Category[] = []): Slice[] {
+function buildSlices(
+  expenses: Expense[],
+  customCategories: import('../../store/types').Category[] = [],
+  includeDelayed: boolean = false
+): Slice[] {
   const totals = new Map<string, number>();
   for (const exp of expenses) {
-    if (exp.type !== 'real' || exp.isFictitious) continue;
-    totals.set(exp.categoryId, (totals.get(exp.categoryId) ?? 0) + exp.amount);
+    if (exp.isFictitious || exp.type === 'income') continue;
+    if (!includeDelayed && exp.type !== 'real') continue;
+
+    let amount = exp.amount;
+    if (includeDelayed && exp.type === 'real' && exp.savedExtraAmount) {
+      amount += exp.savedExtraAmount;
+    }
+    totals.set(exp.categoryId, (totals.get(exp.categoryId) ?? 0) + amount);
   }
 
   const grandTotal = Array.from(totals.values()).reduce((s, v) => s + v, 0);
@@ -102,33 +112,41 @@ function computeArcs(
 }
 
 export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
+  const [includeDelayed, setIncludeDelayed] = useState(false);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const { customCategories } = useCategoryStore();
-  const slices = useMemo(() => buildSlices(expenses, customCategories), [expenses, customCategories]);
-
-  const totalReal = useMemo(
-    () => expenses.filter((e) => e.type === 'real' && !e.isFictitious).reduce((s, e) => s + e.amount, 0),
-    [expenses]
+  const slices = useMemo(
+    () => buildSlices(expenses, customCategories, includeDelayed),
+    [expenses, customCategories, includeDelayed]
   );
+
+  const totalAmount = useMemo(() => {
+    return expenses
+      .filter((e) => !e.isFictitious && (e.type === 'real' || (includeDelayed && e.type === 'delayed')))
+      .reduce((s, e) => {
+        let amt = e.amount;
+        if (includeDelayed && e.type === 'real' && e.savedExtraAmount) {
+          amt += e.savedExtraAmount;
+        }
+        return s + amt;
+      }, 0);
+  }, [expenses, includeDelayed]);
 
   const activeSlice = activeIdx !== null ? slices[activeIdx] : null;
 
-  // Gastos reales de la categoría seleccionada para el desglose detallado
+  // Gastos (y compras postergadas si está activado) de la categoría seleccionada para el desglose detallado
   const categoryExpenses = useMemo(() => {
     if (!activeSlice) return [];
     return expenses
-      .filter((e) => e.type === 'real' && !e.isFictitious && e.categoryId === activeSlice.categoryId)
+      .filter((e) => {
+        if (e.isFictitious || e.categoryId !== activeSlice.categoryId) return false;
+        if (includeDelayed) {
+          return e.type === 'real' || e.type === 'delayed';
+        }
+        return e.type === 'real';
+      })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [expenses, activeSlice]);
-
-  if (slices.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-40 text-slate-400 text-sm gap-1">
-        <span className="text-2xl">🍩</span>
-        <span>No hay gastos reales en este período</span>
-      </div>
-    );
-  }
+  }, [expenses, activeSlice, includeDelayed]);
 
   const cx = 80;
   const cy = 80;
@@ -139,107 +157,140 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
   const arcs = computeArcs(slices, activeIdx, cx, cy, rOuter);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-center gap-6">
-        {/* SVG Donut */}
-        <div className="relative shrink-0">
-          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
-            {arcs.map((arc, i) => (
-              <path
-                key={arc.categoryId}
-                d={arc.d}
-                fill="none"
-                stroke={arc.color}
-                strokeWidth={arc.isActive ? 20 : 14}
-                strokeLinecap="round"
-                style={{ cursor: 'pointer', transition: 'stroke-width 0.15s, d 0.15s' }}
-                onClick={() => setActiveIdx(activeIdx === i ? null : i)}
-                aria-label={`${arc.name}: ${formatCurrency(arc.amount)}`}
-              />
-            ))}
-            <circle cx={cx} cy={cy} r={rInner - 4} fill="white" />
-            {activeSlice ? (
-              <>
-                <text
-                  x={cx}
-                  y={cy - 6}
-                  textAnchor="middle"
-                  fontSize="9"
-                  fontWeight="600"
-                  fill="#475569"
-                  className="select-none"
-                >
-                  {activeSlice.name.length > 14 ? activeSlice.name.slice(0, 13) + '…' : activeSlice.name}
-                </text>
-                <text
-                  x={cx}
-                  y={cy + 8}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fontWeight="800"
-                  fill="#1e293b"
-                  className="select-none"
-                >
-                  {activeSlice.percentage.toFixed(0)}%
-                </text>
-              </>
-            ) : (
-              <>
-                <text
-                  x={cx}
-                  y={cy - 5}
-                  textAnchor="middle"
-                  fontSize="8"
-                  fontWeight="600"
-                  fill="#94a3b8"
-                  className="select-none"
-                >
-                  Total gastado
-                </text>
-                <text
-                  x={cx}
-                  y={cy + 8}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fontWeight="800"
-                  fill="#1e293b"
-                  className="select-none"
-                >
-                  {formatCurrency(totalReal).replace('$', '$')}
-                </text>
-              </>
-            )}
-          </svg>
-        </div>
-
-        {/* Leyenda clickeable */}
-        <div className="flex flex-col gap-1.5 min-w-0">
-          {slices.slice(0, 6).map((slice, i) => (
-            <button
-              key={slice.categoryId}
-              type="button"
-              onClick={() => setActiveIdx(activeIdx === i ? null : i)}
-              className={`flex items-center gap-2 text-left transition-opacity cursor-pointer ${
-                activeIdx !== null && activeIdx !== i ? 'opacity-40' : 'opacity-100'
-              }`}
-            >
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: slice.color }}
-              />
-              <span className="text-[11px] text-slate-600 truncate max-w-[110px]">{slice.name}</span>
-              <span className="text-[11px] font-bold text-slate-800 ml-auto pl-1 shrink-0">
-                {slice.percentage.toFixed(0)}%
-              </span>
-            </button>
-          ))}
-          {slices.length > 6 && (
-            <span className="text-[10px] text-slate-400 pl-4">
-              +{slices.length - 6} más
+    <div className="flex flex-col gap-3">
+      {/* Selector para incluir compras postergadas (DelaySpend) */}
+      <div className="flex items-center justify-between px-1">
+        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600 hover:text-slate-900 transition-colors">
+          <input
+            type="checkbox"
+            checked={includeDelayed}
+            onChange={(e) => {
+              setIncludeDelayed(e.target.checked);
+              setActiveIdx(null);
+            }}
+            className="w-3.5 h-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+          />
+          <span className="font-medium flex items-center gap-1.5">
+            Incluir DelaySpend
+            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold border border-emerald-200/60 inline-flex items-center gap-0.5">
+              <ShieldCheck className="w-2.5 h-2.5" />
+              Ahorros
             </span>
-          )}
-        </div>
+          </span>
+        </label>
       </div>
+
+      {slices.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-36 text-slate-400 text-sm gap-1">
+          <span className="text-2xl">🍩</span>
+          <span>
+            {includeDelayed
+              ? 'No hay gastos ni compras postergadas en este período'
+              : 'No hay gastos reales en este período'}
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-6">
+          {/* SVG Donut */}
+          <div className="relative shrink-0">
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
+              {arcs.map((arc, i) => (
+                <path
+                  key={arc.categoryId}
+                  d={arc.d}
+                  fill="none"
+                  stroke={arc.color}
+                  strokeWidth={arc.isActive ? 20 : 14}
+                  strokeLinecap="round"
+                  style={{ cursor: 'pointer', transition: 'stroke-width 0.15s, d 0.15s' }}
+                  onClick={() => setActiveIdx(activeIdx === i ? null : i)}
+                  aria-label={`${arc.name}: ${formatCurrency(arc.amount)}`}
+                />
+              ))}
+              <circle cx={cx} cy={cy} r={rInner - 4} fill="white" />
+              {activeSlice ? (
+                <>
+                  <text
+                    x={cx}
+                    y={cy - 6}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="600"
+                    fill="#475569"
+                    className="select-none"
+                  >
+                    {activeSlice.name.length > 14 ? activeSlice.name.slice(0, 13) + '…' : activeSlice.name}
+                  </text>
+                  <text
+                    x={cx}
+                    y={cy + 8}
+                    textAnchor="middle"
+                    fontSize="11"
+                    fontWeight="800"
+                    fill="#1e293b"
+                    className="select-none"
+                  >
+                    {activeSlice.percentage.toFixed(0)}%
+                  </text>
+                </>
+              ) : (
+                <>
+                  <text
+                    x={cx}
+                    y={cy - 5}
+                    textAnchor="middle"
+                    fontSize="8"
+                    fontWeight="600"
+                    fill="#94a3b8"
+                    className="select-none"
+                  >
+                    {includeDelayed ? 'Total c/ Delay' : 'Total gastado'}
+                  </text>
+                  <text
+                    x={cx}
+                    y={cy + 8}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="800"
+                    fill="#1e293b"
+                    className="select-none"
+                  >
+                    {formatCurrency(totalAmount)}
+                  </text>
+                </>
+              )}
+            </svg>
+          </div>
+
+          {/* Leyenda clickeable */}
+          <div className="flex flex-col gap-1.5 min-w-0">
+            {slices.slice(0, 6).map((slice, i) => (
+              <button
+                key={slice.categoryId}
+                type="button"
+                onClick={() => setActiveIdx(activeIdx === i ? null : i)}
+                className={`flex items-center gap-2 text-left transition-opacity cursor-pointer ${
+                  activeIdx !== null && activeIdx !== i ? 'opacity-40' : 'opacity-100'
+                }`}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: slice.color }}
+                />
+                <span className="text-[11px] text-slate-600 truncate max-w-[110px]">{slice.name}</span>
+                <span className="text-[11px] font-bold text-slate-800 ml-auto pl-1 shrink-0">
+                  {slice.percentage.toFixed(0)}%
+                </span>
+              </button>
+            ))}
+            {slices.length > 6 && (
+              <span className="text-[10px] text-slate-400 pl-4">
+                +{slices.length - 6} más
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Banner de categoría activa */}
       {activeSlice && (
@@ -265,14 +316,14 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
         </div>
       )}
 
-      {/* DESGLOSE DETALLADO DE GASTOS DE LA CATEGORÍA SELECCIONADA */}
+      {/* DESGLOSE DETALLADO DE GASTOS Y DELAYSPEND DE LA CATEGORÍA SELECCIONADA */}
       {activeSlice && categoryExpenses.length > 0 && (
         <div className="flex flex-col gap-1.5 pt-1">
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              {categoryExpenses.length} gasto{categoryExpenses.length !== 1 ? 's' : ''} en {activeSlice.name}
+              {categoryExpenses.length} {includeDelayed ? 'registro' : 'gasto'}{categoryExpenses.length !== 1 ? 's' : ''} en {activeSlice.name}
             </span>
-            <span className="text-[10px] text-slate-400 font-medium">Tocá un gasto o cerrá</span>
+            <span className="text-[10px] text-slate-400 font-medium">Tocá o cerrá</span>
           </div>
 
           <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto pr-0.5">
@@ -282,10 +333,18 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
                 className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100/90 text-xs hover:border-slate-200 transition-colors"
               >
                 <div className="flex flex-col min-w-0 pr-2">
-                  <span className="font-semibold text-slate-800 truncate leading-snug">
-                    {exp.description}
-                  </span>
-                  <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-slate-800 truncate leading-snug">
+                      {exp.description}
+                    </span>
+                    {exp.type === 'delayed' && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-full border border-emerald-300/60 shrink-0">
+                        <ShieldCheck className="w-2.5 h-2.5" />
+                        DelaySpend
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 flex-wrap">
                     <span>{formatDayMonth(exp.date)}</span>
                     {exp.savedExtraAmount && exp.savedExtraAmount > 0 && (
                       <span className="text-emerald-700 font-bold bg-emerald-50 px-1 rounded-sm border border-emerald-200/60">
@@ -302,9 +361,15 @@ export function CategoryDonutChart({ expenses }: CategoryDonutChartProps) {
                 </div>
 
                 <div className="flex flex-col items-end shrink-0">
-                  <span className="font-bold text-slate-900">
-                    -{formatCurrency(exp.amount)}
-                  </span>
+                  {exp.type === 'delayed' ? (
+                    <span className="font-bold text-emerald-600">
+                      +{formatCurrency(exp.amount)}
+                    </span>
+                  ) : (
+                    <span className="font-bold text-slate-900">
+                      -{formatCurrency(exp.amount)}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

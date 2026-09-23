@@ -231,6 +231,7 @@ export function generateWhatsAppReport(
   // Sección de Resumen Financiero
   lines.push(STRINGS.EXPORT_WHATSAPP_SUMMARY_SECTION);
   if (metrics.initialIncome > 0) {
+    lines.push(`${STRINGS.EXPORT_WHATSAPP_INCOME} ${formatCurrency(metrics.initialIncome)}`);
     if (metrics.extraIncome > 0 && metrics.baseIncome > 0) {
       lines.push(`• Ingreso base asignado: ${formatCurrency(metrics.baseIncome)}`);
       lines.push(`• Ingresos extra recibidos: +${formatCurrency(metrics.extraIncome)}`);

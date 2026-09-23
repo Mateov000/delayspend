@@ -368,15 +368,10 @@ Al lado del interruptor de rendición unificada hay un botón de tuerquita ⚙�
    - Si desmarcás una naturaleza acá (ej: *Fijos*), esos gastos **no se incluirán en el texto ni sumarán en el total a rendir**.
 4. **Modo de Resumen Financiero al final:**
    - **Detalle completo:** Muestra ingreso asignado, total a rendir, saldo disponible remanente y total destinado a la casa.
-   - **Solo total a rendir:** Termina simplemente diciendo:
    - **Solo total a rendir:** Emite únicamente la línea final con el monto total a reponer:
      `📈 *Total:*`  
-     `• Total a rendir: $48.200`
-5. **Persistencia Automática:** Toda opción que cambies en el menú ⚙️ se guarda automáticamente en tu navegador (`localStorage`), de modo que tus preferencias quedan listas para la próxima vez.
-   - **Solo total a rendir:** Emite únicamente la línea final con el monto total a reponer.
-5. **Persistencia Automática:** Toda opción que cambies en el menú ⚙️ se guarda automáticamente en `localStorage` (`delayspend_parent_export_config_v1`).
      `• Total a rendir: $48.200,00`
-5. **Persistencia Automática:** Toda opción que cambies en el menú ⚙️ se guarda automáticamente en `localStorage` (`delayspend_parent_export_config_v1`), de modo que tus preferencias quedan listas para la próxima vez.
+5. **Persistencia Automática:** Toda opción que cambies en el menú ⚙️ se guarda automáticamente en tu navegador (`localStorage`), de modo que tus preferencias quedan listas para la próxima vez.
 
 ### 9.3 Tratamiento de Ingresos Extra en la Rendición
 Si durante el período recibiste dinero adicional (ej: un reintegro, un laburo freelance o plata extra):
@@ -391,12 +386,12 @@ Si durante el período recibiste dinero adicional (ej: un reintegro, un laburo f
 🗓 *Período:* Período 2 (01/09 al Presente)
 
 💸 *Detalle de Gastos del Período:*
-• 16/09: Verdulería semanal - $28.000 [Comida] 🏠 [Para la casa]
-• 15/09: Farmacia y botiquín - $8.500 [Salud]
-• 14/09: Almuerzo facultad - $6.200 [Comida] 🛒 [Cotidiano]
-• 13/09: Alfajor y merienda - $2.200 [Comida] 🛒 [Cotidiano]
-• 12/09: Tratamiento personal - $18.000 [Otros Gastos] ⚡ [Eventual]
-• 10/09: Abono transporte - $9.000 [Transporte] 🔄 [Fijo]
+• 16/09: Verdulería semanal - $28.000,00 [Comida] 🏠 [Para la casa]
+• 15/09: Farmacia y botiquín - $8.500,00 [Salud]
+• 14/09: Almuerzo facultad - $6.200,00 [Comida] 🛒 [Cotidiano]
+• 13/09: Alfajor y merienda - $2.200,00 [Comida] 🛒 [Cotidiano]
+• 12/09: Tratamiento personal - $18.000,00 [Otros Gastos] ⚡ [Eventual]
+• 10/09: Abono transporte - $9.000,00 [Transporte] 🔄 [Fijo]
 
 📥 *Ingresos extra recibidos en el período:*
 • 11/09: Honorarios diseño freelance - +$15.000,00
@@ -416,8 +411,26 @@ El archivo CSV descargado incluye codificación **UTF-8 BOM (`\uFEFF`)** obligat
 
 ---
 
-## 9. Sincronización en la Nube y Uso Multi-Dispositivo
-## 10. Sincronización en la Nube y Uso Multi-Dispositivo
+## 10. 🍩 Gráfico de Gastos por Categoría e Inclusión de DelaySpend
+
+En la pestaña **Analíticas**, el gráfico de dona distribuye visualmente el dinero del período por cada rubro:
+1. **Casilla "Incluir DelaySpend":**
+   - Justo encima del gráfico tenés la casilla **"Incluir DelaySpend"** con la insignia `🛡️ Ahorros`.
+   - **Desmarcada (por defecto):** Te muestra únicamente tus gastos reales estrictos, calculando el centro como *"Total gastado"*.
+   - **Marcada:** Suma tanto tus gastos reales como las compras postergadas y los ahorros por alternativas más baratas en cada categoría. El centro pasa a decir *"Total c/ Delay"*, permitiéndote ver a qué rubros se hubiera ido tu plata de no haber frenado el impulso.
+2. **Desglose al Tocar una Categoría:**
+   - Si tocás una porción de la dona o una categoría de la leyenda, se despliega la lista interactiva de todos los movimientos de ese rubro.
+   - Con la casilla marcada, las compras postergadas aparecen con el badge `🛡️ DelaySpend` y el monto en verde `+$...` para distinguirse con claridad del gasto real.
+
+---
+
+## 11. 🛡️ Categorización Avanzada de Compras Postergadas
+
+Al registrar una **Compra Postergada (DelaySpend)**, ahora disponés de exactamente las mismas herramientas de categorización que en un gasto real:
+- **Naturaleza del Gasto:** Podés clasificarla como `Cotidiano`, `Fijo` (si pensabas suscribirte a algo), `Eventual` o `Para la casa`.
+- **Subcategorías:** Podés asociarla a subcategorías específicas (ej: Delivery, Indumentaria formal, etc.).
+- **Etiquetas (Tags):** Podés asignarle etiquetas libres como `#gustito`, `#antojo`, `#ahorro`.
+- **Historial y Badges:** En la pantalla principal verás las etiquetas de naturaleza (`Para la casa`, `Eventual`, `Fijo`) junto al icono de compra postergada para un orden visual total.
 
 DelaySpend funciona bajo un modelo **Local-First Híbrido**:
 

@@ -102,7 +102,7 @@ export function ExpenseListItem({
             )}
 
             {/* Gasto para la casa badge */}
-            {isReal && expense.nature === 'house' && (
+            {!isIncome && expense.nature === 'house' && (
               <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200/80 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
                 <Home className="w-2.5 h-2.5" />
                 <span>Para la casa</span>
@@ -110,7 +110,7 @@ export function ExpenseListItem({
             )}
 
             {/* Gasto eventual badge */}
-            {isReal && expense.nature === 'eventual' && (
+            {!isIncome && expense.nature === 'eventual' && (
               <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200/80 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
                 <Zap className="w-2.5 h-2.5" />
                 <span>Eventual</span>
@@ -118,7 +118,7 @@ export function ExpenseListItem({
             )}
 
             {/* Gasto fijo badge */}
-            {isReal && (expense.nature === 'fixed' || expense.isRecurring) && (
+            {!isIncome && (expense.nature === 'fixed' || expense.isRecurring) && (
               <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200/80 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
                 <RefreshCw className="w-2.5 h-2.5" />
                 <span>Fijo</span>

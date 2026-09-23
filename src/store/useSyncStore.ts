@@ -82,7 +82,7 @@ function mapRowToExpense(row: DbExpenseRow): Expense {
     installmentNumber: row.installment_number ?? null,
     installmentTotal: row.installment_total ?? null,
     isRecurring: (row.nature === 'fixed' || Boolean(row.is_recurring)) ? true : undefined,
-    nature: expenseType === 'real'
+    nature: expenseType !== 'income'
       ? ((row.nature === 'daily' || row.nature === 'fixed' || row.nature === 'eventual' || row.nature === 'house')
           ? (row.nature as Expense['nature'])
           : (row.is_recurring ? 'fixed' : 'daily'))
@@ -126,7 +126,7 @@ function mapExpenseToRow(expense: Expense, userId: string): Omit<DbExpenseRow, '
     installment_number: expense.installmentNumber ?? null,
     installment_total: expense.installmentTotal ?? null,
     is_recurring: expense.isRecurring ?? false,
-    nature: expense.type === 'real' ? (expense.nature ?? (expense.isRecurring ? 'fixed' : 'daily')) : null,
+    nature: expense.type !== 'income' ? (expense.nature ?? (expense.isRecurring ? 'fixed' : 'daily')) : null,
     is_fictitious: expense.isFictitious ?? false,
     subcategory: expense.subcategory ?? null,
     created_at: expense.createdAt,
