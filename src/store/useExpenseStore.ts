@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { Expense, ExpenseInput, ExpenseType, ExpenseNature, CategoryId } from './types';
 import { generateId } from '../utils/id';
 import { generateFutureInstallments } from '../utils/installments';
+import { findPeriodForDate, getRegisteredPeriods } from '../utils/date';
 
 export interface ExpenseState {
   expenses: Expense[];
@@ -14,6 +15,7 @@ export interface ExpenseState {
   resetAllData: () => void;
   importExpenses: (expenses: Expense[]) => void;
   assignExpensesToPeriod: (expenseIds: string[], periodId: string | null) => void;
+  repairMismatchedExpensePeriods: () => void;
 }
 
 type SyncListener = (action: 'push' | 'delete', item: Expense | string) => void;
@@ -117,7 +119,7 @@ function sanitizeExpense(raw: unknown): Expense | null {
 
 export const useExpenseStore = create<ExpenseState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       expenses: [],
 
       addExpense: (input: ExpenseInput) => {
@@ -137,6 +139,10 @@ export const useExpenseStore = create<ExpenseState>()(
           input.installmentTotal > 1;
         const installmentGroupId = hasInstallments ? (input.installmentGroupId ?? generateId()) : null;
 
+        const periods = getRegisteredPeriods();
+        const resolvedPeriod = findPeriodForDate(input.date, periods, input.periodId);
+        const resolvedPeriodId = resolvedPeriod ? resolvedPeriod.id : (input.periodId ?? null);
+
         const newExpense: Expense = {
           id: generateId(),
           type: input.type,
@@ -147,7 +153,7 @@ export const useExpenseStore = create<ExpenseState>()(
           transferredAt: null,
           createdAt: now,
           updatedAt: now,
-          periodId: input.periodId ?? null,
+          periodId: resolvedPeriodId,
           savedExtraAmount: input.type === 'real' ? savedExtra : undefined,
           tags,
           installmentGroupId: input.type === 'real' ? installmentGroupId : null,
@@ -197,8 +203,13 @@ export const useExpenseStore = create<ExpenseState>()(
               input.description !== undefined ? input.description.trim() : expense.description;
             const updatedCat = input.categoryId ?? expense.categoryId;
             const updatedDate = input.date ?? expense.date;
-            const updatedPeriodId =
+            const periods = getRegisteredPeriods();
+            const preferredPeriodId =
               input.periodId !== undefined ? input.periodId : expense.periodId;
+            const resolvedPeriod = findPeriodForDate(updatedDate, periods, preferredPeriodId);
+            const updatedPeriodId = resolvedPeriod
+              ? resolvedPeriod.id
+              : (input.periodId !== undefined ? input.periodId : expense.periodId);
             const updatedTags =
               input.tags !== undefined
                 ? (input.tags.length > 0 ? input.tags : undefined)
@@ -384,6 +395,50 @@ export const useExpenseStore = create<ExpenseState>()(
           .map(sanitizeExpense)
           .filter((item): item is Expense => item !== null);
         set({ expenses: valid });
+      },
+
+      repairMismatchedExpensePeriods: () => {
+        const periods = getRegisteredPeriods();
+        if (periods.length === 0) return;
+        const activePeriods = periods.filter((p) => !p.deletedAt);
+        if (activePeriods.length === 0) return;
+
+        const { expenses } = get();
+        const updatedList: Expense[] = [];
+        let hasChanges = false;
+
+        const newExpenses = expenses.map((exp) => {
+          if (exp.periodId) {
+            const assigned = activePeriods.find((p) => p.id === exp.periodId);
+            const isAssignedValid =
+              assigned &&
+              exp.date >= assigned.startDate &&
+              (!assigned.endDate || exp.date <= assigned.endDate);
+
+            if (!isAssignedValid) {
+              const resolved = findPeriodForDate(exp.date, activePeriods);
+              const newPeriodId = resolved ? resolved.id : null;
+              if (newPeriodId !== exp.periodId) {
+                hasChanges = true;
+                const updated = {
+                  ...exp,
+                  periodId: newPeriodId,
+                  updatedAt: new Date().toISOString(),
+                };
+                updatedList.push(updated);
+                return updated;
+              }
+            }
+          }
+          return exp;
+        });
+
+        if (hasChanges) {
+          set({ expenses: newExpenses });
+          for (const item of updatedList) {
+            syncListener?.('push', item);
+          }
+        }
       },
     }),
     {

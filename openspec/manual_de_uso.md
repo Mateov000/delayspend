@@ -519,6 +519,10 @@ Verificá en la cabecera que ambos dispositivos tengan la sesión iniciada con l
 ### ¿Cómo hago si quise empezar un período nuevo pero me olvidé de incluir un gasto en el período anterior?
 Podés ir al gasto, tocar editar y cambiarle la fecha para que quede antes de la fecha de inicio del ciclo nuevo, o tocar **"Deshacer corte"** en el período actual para reunificarlos y volver a hacer el corte en el momento deseado.
 
+### ¿Qué pasa si cargo un gasto con fecha de hoy mientras estaba mirando un período pasado?
+El sistema lo resuelve automáticamente. DelaySpend no asume a ciegas que el gasto pertenece al período que estabas mirando en pantalla: analiza la fecha ingresada (`findPeriodForDate`) y lo ubica en el ciclo que realmente le corresponde (por ejemplo, el período vigente).
+Además, para tu comodidad, la aplicación conmuta la vista al período de destino y te avisa mediante una notificación Toast (*ej: "DelaySpend registrado en Septiembre 2026"*), para que veas tu nuevo movimiento en pantalla al instante sin que quede extraviado.
+
 ### ¿Las compras postergadas se suman a lo que tengo que rendir a mis padres?
 En el **modo unificado para padres**, todos los movimientos cargados justifican el dinero presupuestario recibido. Si querés que no aparezcan, podés desactivar el modo unificado o utilizar las opciones de configuración de la tuerquita ⚙️ para incluir únicamente los gastos reales cotidianos.
 
@@ -526,4 +530,4 @@ En el **modo unificado para padres**, todos los movimientos cargados justifican 
 Porque le asignaste la naturaleza **"Para la casa" (`house`)**. El sistema aísla inteligentemente ese monto de tu ritmo de consumo personal para no penalizar tus métricas de disciplina individual, pero sí lo descuenta de tu saldo remanente y lo incluye en la rendición de cuentas.
 
 ---
-*Fin del Manual de Uso — DelaySpend v1.6.0*
+*Fin del Manual de Uso — DelaySpend v1.7.0*

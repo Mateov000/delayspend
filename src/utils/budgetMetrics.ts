@@ -1,4 +1,5 @@
 import { Expense, CategoryId, Period } from '../store/types';
+import { isExpenseInPeriod } from './date';
 
 export interface CategorySpending {
   categoryId: CategoryId;
@@ -538,13 +539,9 @@ export function calculatePeriodGoalProgress(
 ): PeriodGoalMetrics | null {
   if (!period || period.initialIncome <= 0) return null;
 
-  const periodExpenses = expenses.filter((e) => {
-    if (e.isFictitious) return false;
-    if (e.periodId) return e.periodId === period.id;
-    if (e.date < period.startDate) return false;
-    if (period.endDate && e.date > period.endDate) return false;
-    return true;
-  });
+  const periodExpenses = expenses.filter(
+    (e) => !e.isFictitious && isExpenseInPeriod(e, period)
+  );
 
   let spent = 0;
   let spentDaily = 0;

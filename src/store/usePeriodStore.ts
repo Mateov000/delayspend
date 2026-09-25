@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { Period, Expense } from './types';
 import { generateId } from '../utils/id';
 import { useExpenseStore } from './useExpenseStore';
+import { findPeriodForDate, registerPeriodsProvider } from '../utils/date';
 
 export interface CreatePeriodInput {
   name?: string;
@@ -85,6 +86,8 @@ export function getLatestPeriod(periods: Period[]): Period | null {
       return b.createdAt.localeCompare(a.createdAt);
     })[0] ?? null;
 }
+
+export { findPeriodForDate };
 
 export const usePeriodStore = create<PeriodState>()(
   persist(
@@ -371,4 +374,7 @@ export const usePeriodStore = create<PeriodState>()(
     }
   )
 );
+
+registerPeriodsProvider(() => usePeriodStore.getState().periods);
+
 

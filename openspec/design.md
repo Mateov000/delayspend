@@ -1136,4 +1136,21 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 5. **No Diálogos Nativos:** Prohibido el uso de `window.alert`, `window.confirm` o `window.prompt`. Toda interacción utiliza `ConfirmDialog` o `Toaster`.
 
 ---
-*Fin de la Especificación de Diseño — DelaySpend v1.6.0*
+
+## 13. 🔄 Resolución Dinámica y Visibilidad de Gastos entre Períodos
+
+1. **Resolución Cronológica de Períodos (`findPeriodForDate`):**
+   - La asignación de un gasto a un período (`periodId`) no depende rígidamente del período que el usuario esté mirando al abrir el formulario, sino de la fecha (`date`) del gasto.
+   - Si un usuario crea o edita un gasto con fecha correspondiente a un período diferente (ej. fecha del período vigente estando en la vista de un período pasado), el sistema resuelve automáticamente el ciclo cronológico correcto.
+   - En fechas límite compartidas (ej. día de corte exacto), se respeta la preferencia si coincide con alguno de los ciclos; en caso contrario, se asigna al ciclo más reciente/abierto.
+
+2. **Resiliencia y Auto-recuperación (`isExpenseInPeriod`):**
+   - Si un gasto posee un `periodId` que apunta a un ciclo cuyas fechas no abarcan la fecha del gasto (o cuyo ciclo fue eliminado), el evaluador descarta el `periodId` inválido y acepta el gasto en el ciclo cuyos límites de fecha sí lo contienen.
+   - Los gastos nunca desaparecen ni quedan huérfanos entre períodos.
+   - Al cargar la aplicación, `repairMismatchedExpensePeriods` normaliza cualquier desfasaje existente en la base de datos local y remota.
+
+3. **Navegación Fluida:**
+   - Si el usuario registra un gasto perteneciente a un ciclo distinto al visualizado actualmente, la app conmuta automáticamente la vista al ciclo de destino para que el movimiento sea visible en pantalla al instante, complementado con un toast descriptivo (`... en [Nombre Período]`).
+
+---
+*Fin de la Especificación de Diseño — DelaySpend v1.7.0*

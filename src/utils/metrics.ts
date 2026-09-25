@@ -8,7 +8,7 @@ export function calculateMetrics(
   periods?: Period[]
 ): FinancialMetrics {
   const filtered = expenses.filter(
-    (expense) => !expense.isFictitious && isExpenseMatchingFilter(expense, filter, period)
+    (expense) => !expense.isFictitious && isExpenseMatchingFilter(expense, filter, period, periods)
   );
 
   let totalReal = 0;

@@ -2,7 +2,10 @@ import { BottomSheet } from '../ui/BottomSheet';
 import { ExpenseForm } from './ExpenseForm';
 import { Expense, ExpenseInput } from '../../store/types';
 import { useExpenseStore } from '../../store/useExpenseStore';
+import { usePeriodStore } from '../../store/usePeriodStore';
+import { useFilterStore } from '../../store/useFilterStore';
 import { useToastStore } from '../../store/useToastStore';
+import { findPeriodForDate } from '../../utils/date';
 import { STRINGS } from '../../constants/strings';
 
 interface AddExpenseSheetProps {
@@ -24,25 +27,55 @@ export function AddExpenseSheet({
 }: AddExpenseSheetProps) {
   const { addExpense, updateExpense } = useExpenseStore();
   const { showToast } = useToastStore();
+  const { periods, activePeriodId, setActivePeriodId } = usePeriodStore();
+  const { setFilterType } = useFilterStore();
 
   const handleFormSubmit = (data: ExpenseInput) => {
     if (editingExpense) {
-      updateExpense(editingExpense.id, data);
+      const targetPeriod = findPeriodForDate(
+        data.date,
+        periods,
+        data.periodId ?? editingExpense.periodId
+      );
+      const updatedData: ExpenseInput = {
+        ...data,
+        periodId: targetPeriod ? targetPeriod.id : null,
+      };
+      updateExpense(editingExpense.id, updatedData);
       showToast(STRINGS.TOAST_EXPENSE_UPDATED, 'info');
     } else {
+      const targetPeriod = findPeriodForDate(
+        data.date,
+        periods,
+        data.periodId ?? defaultPeriodId
+      );
       const expenseData: ExpenseInput = {
         ...data,
-        periodId: data.periodId ?? defaultPeriodId ?? null,
+        periodId: targetPeriod ? targetPeriod.id : null,
       };
       addExpense(expenseData);
+
+      // Si el gasto pertenece a un período distinto al que se estaba visualizando,
+      // conmutamos la vista hacia el período donde realmente cayó el gasto
+      const isSwitchingPeriod =
+        targetPeriod && activePeriodId !== 'all' && activePeriodId !== targetPeriod.id;
+      if (isSwitchingPeriod) {
+        setActivePeriodId(targetPeriod.id);
+        setFilterType('custom_period');
+      }
+
+      const periodSuffix = isSwitchingPeriod ? ` en ${targetPeriod.name}` : '';
+
       if (data.isFictitious) {
-        showToast('🎭 Gasto ficticio registrado (máscara para padres).', 'success');
+        showToast(`🎭 Gasto ficticio registrado (máscara para padres)${periodSuffix}.`, 'success');
       } else if (data.savedExtraAmount && data.savedExtraAmount > 0) {
-        showToast(STRINGS.TOAST_EXPENSE_ADDED_WITH_SAVINGS, 'success');
+        showToast(`${STRINGS.TOAST_EXPENSE_ADDED_WITH_SAVINGS}${periodSuffix}`, 'success');
       } else if (data.type === 'delayed') {
-        showToast(STRINGS.TOAST_EXPENSE_ADDED_DELAYED, 'success');
+        showToast(`${STRINGS.TOAST_EXPENSE_ADDED_DELAYED}${periodSuffix}`, 'success');
+      } else if (data.type === 'income') {
+        showToast(`💵 Ingreso registrado${periodSuffix}.`, 'success');
       } else {
-        showToast(STRINGS.TOAST_EXPENSE_ADDED_REAL, 'success');
+        showToast(`${STRINGS.TOAST_EXPENSE_ADDED_REAL}${periodSuffix}`, 'success');
       }
     }
     onClose();

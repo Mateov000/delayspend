@@ -34,6 +34,7 @@ export default function App() {
     deleteExpense,
     markAllPendingAsTransferred,
     toggleTransferred,
+    repairMismatchedExpensePeriods,
   } = useExpenseStore();
 
   const { activeFilter, setFilterType } = useFilterStore();
@@ -76,6 +77,13 @@ export default function App() {
     }
   }, [periods, setActivePeriodId, setFilterType]);
 
+  // Auto-recuperar gastos que hayan quedado con un periodId incompatible con sus fechas
+  useEffect(() => {
+    if (periods.length > 0) {
+      repairMismatchedExpensePeriods();
+    }
+  }, [periods, repairMismatchedExpensePeriods]);
+
   // Navegación por pestañas
   const [activeTab, setActiveTab] = useState<TabId>('home');
 
@@ -100,7 +108,7 @@ export default function App() {
 
   // Filtrado de gastos para el período activo
   const filteredExpenses = expenses.filter((e) =>
-    isExpenseMatchingFilter(e, activeFilter, activePeriod)
+    isExpenseMatchingFilter(e, activeFilter, activePeriod, periods)
   );
 
   // Cálculo reactivo de métricas sobre el período seleccionado

@@ -1,6 +1,17 @@
 import { Expense, Period, PeriodFilterState } from '../store/types';
 import { formatDisplayDate } from './format';
 
+type PeriodsProvider = () => Period[];
+let periodsProvider: PeriodsProvider | null = null;
+
+export function registerPeriodsProvider(provider: PeriodsProvider) {
+  periodsProvider = provider;
+}
+
+export function getRegisteredPeriods(): Period[] {
+  return periodsProvider ? periodsProvider() : [];
+}
+
 export function isWithinPeriod(
   dateStr: string,
   filter: PeriodFilterState,
@@ -38,23 +49,76 @@ export function isWithinPeriod(
 export function isExpenseMatchingFilter(
   expense: Expense,
   filter: PeriodFilterState,
-  period?: Period | null
+  period?: Period | null,
+  allPeriods?: Period[]
 ): boolean {
   if (filter.type === 'all') return true;
 
   if (filter.type === 'custom_period' && period) {
-    return isExpenseInPeriod(expense, period);
+    return isExpenseInPeriod(expense, period, allPeriods);
   }
 
   return isWithinPeriod(expense.date, filter, period);
 }
 
 /**
+ * Encuentra el período al que cronológicamente pertenece una fecha.
+ * Si la fecha cae en el límite compartido entre dos períodos (ej. fecha de corte),
+ * se prioriza el preferredPeriodId si coincide con alguno de ellos; de lo contrario
+ * se prioriza el período más reciente / abierto.
+ */
+export function findPeriodForDate(
+  date: string,
+  periods: Period[],
+  preferredPeriodId?: string | null
+): Period | null {
+  const activePeriods = periods.filter((p) => !p.deletedAt);
+  if (activePeriods.length === 0) return null;
+
+  // Filtrar períodos cuyo rango de fechas [startDate, endDate] contenga la fecha del gasto
+  const matchingPeriods = activePeriods.filter((p) => {
+    if (date < p.startDate) return false;
+    if (p.endDate && date > p.endDate) return false;
+    return true;
+  });
+
+  if (matchingPeriods.length === 0) {
+    return null;
+  }
+
+  if (matchingPeriods.length === 1) {
+    return matchingPeriods[0]!;
+  }
+
+  // Si hay más de un período que contiene la fecha (ej. día de corte compartido):
+  if (preferredPeriodId) {
+    const preferred = matchingPeriods.find((p) => p.id === preferredPeriodId);
+    if (preferred) return preferred;
+  }
+
+  // Por defecto, preferir el período abierto (endDate === null) o el de startDate más reciente
+  const openPeriod = matchingPeriods.find((p) => p.endDate === null);
+  if (openPeriod) return openPeriod;
+
+  return [...matchingPeriods].sort((a, b) => {
+    const diff = b.startDate.localeCompare(a.startDate);
+    if (diff !== 0) return diff;
+    return b.createdAt.localeCompare(a.createdAt);
+  })[0]!;
+}
+
+/**
  * Verifica si un gasto pertenece directamente a un período específico.
  * Valida primero que la fecha del gasto esté dentro de los límites del ciclo,
  * y luego comprueba periodId si está presente.
+ * Si el periodId apunta a otro período que NO cubre la fecha del gasto, se considera
+ * un desfasaje/error y este período (cuyos límites sí cubren el gasto) lo acepta.
  */
-export function isExpenseInPeriod(expense: Expense, period: Period): boolean {
+export function isExpenseInPeriod(
+  expense: Expense,
+  period: Period,
+  allPeriods?: Period[]
+): boolean {
   if (period.deletedAt) return false;
 
   // Si la fecha del gasto está fuera de los límites cronológicos del período, no pertenece a él
@@ -63,7 +127,28 @@ export function isExpenseInPeriod(expense: Expense, period: Period): boolean {
 
   // Si cae dentro del rango de fechas del período:
   if (expense.periodId) {
-    return expense.periodId === period.id;
+    if (expense.periodId === period.id) {
+      return true;
+    }
+
+    // Si tiene asignado otro período, verificamos si ese otro período es válido y activo para esta fecha.
+    // Solo si el otro período existe y realmente cubre la fecha (ej. día de corte exacto donde dos períodos
+    // se tocan), respetamos la asignación del otro período y excluimos el gasto de este.
+    const periodsList =
+      allPeriods ?? (periodsProvider ? periodsProvider() : []);
+    const assignedPeriod = periodsList.find((p) => p.id === expense.periodId && !p.deletedAt);
+    if (assignedPeriod) {
+      const isAssignedValidForDate =
+        expense.date >= assignedPeriod.startDate &&
+        (!assignedPeriod.endDate || expense.date <= assignedPeriod.endDate);
+      if (isAssignedValidForDate) {
+        return false;
+      }
+    }
+
+    // Si el assignedPeriod no cubre la fecha o ya no existe, el periodId estaba desfasado:
+    // aceptamos el gasto en este período que sí contiene cronológicamente la fecha.
+    return true;
   }
 
   return true;
