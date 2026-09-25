@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { ExpenseReminder } from '../../store/types';
-import { useReminderStore } from '../../store/useReminderStore';
+import { useReminderStore, countPendingOccurrences } from '../../store/useReminderStore';
 import { formatCurrency, formatDayMonth } from '../../utils/format';
 import {
   Bell,
@@ -145,6 +145,7 @@ export function RemindersModal({
             <div className="flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto pr-0.5">
               {filteredReminders.map((reminder) => {
                 const isDue = reminder.isActive && reminder.nextDate <= todayStr;
+                const pendingCount = countPendingOccurrences(reminder, todayStr);
                 const recurrenceText = getRecurrenceText(reminder);
                 const endText = getEndConditionText(reminder);
 
@@ -168,11 +169,19 @@ export function RemindersModal({
                               !reminder.isActive
                                 ? 'bg-slate-200 text-slate-600'
                                 : isDue
-                                ? 'bg-amber-200 text-amber-900'
+                                ? pendingCount > 1
+                                  ? 'bg-amber-500 text-white'
+                                  : 'bg-amber-200 text-amber-900'
                                 : 'bg-indigo-100 text-indigo-800'
                             }`}
                           >
-                            {!reminder.isActive ? 'Pausado' : isDue ? '¡Pendiente!' : 'Programado'}
+                            {!reminder.isActive
+                              ? 'Pausado'
+                              : isDue
+                              ? pendingCount > 1
+                                ? `¡${pendingCount} en cola!`
+                                : '¡Pendiente!'
+                              : 'Programado'}
                           </span>
                           {reminder.subcategory && (
                             <span className="text-[10px] font-medium text-slate-500 truncate">

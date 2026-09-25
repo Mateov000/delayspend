@@ -1,6 +1,6 @@
-import { BellRing, Check, Clock, ChevronRight, X } from 'lucide-react';
+import { BellRing, Check, Clock, ChevronRight, X, FastForward, Layers } from 'lucide-react';
 import { ExpenseReminder } from '../../store/types';
-import { useReminderStore } from '../../store/useReminderStore';
+import { useReminderStore, countPendingOccurrences } from '../../store/useReminderStore';
 import { formatCurrency, formatDayMonth } from '../../utils/format';
 import { useToastStore } from '../../store/useToastStore';
 
@@ -13,7 +13,7 @@ export function ReminderBannerCard({
   onIncorporate,
   onOpenManage,
 }: ReminderBannerCardProps) {
-  const { getDueReminders, markIgnored } = useReminderStore();
+  const { getDueReminders, markIgnored, fastForwardReminder } = useReminderStore();
   const { showToast } = useToastStore();
 
   const dueReminders = getDueReminders();
@@ -24,9 +24,21 @@ export function ReminderBannerCard({
 
   const todayStr = new Date().toISOString().split('T')[0]!;
 
-  const handleIgnore = (reminder: ExpenseReminder) => {
+  const handleIgnore = (reminder: ExpenseReminder, pendingCount: number) => {
     markIgnored(reminder.id);
-    showToast(`Recordatorio "${reminder.title}" ignorado.`, 'info');
+    if (pendingCount > 1) {
+      showToast(
+        `Ciclo de ${formatDayMonth(reminder.nextDate)} ignorado. Quedan ${pendingCount - 1} pendientes en cola.`,
+        'info'
+      );
+    } else {
+      showToast(`Recordatorio "${reminder.title}" ignorado.`, 'info');
+    }
+  };
+
+  const handleFastForward = (reminder: ExpenseReminder) => {
+    fastForwardReminder(reminder.id);
+    showToast(`Recordatorio "${reminder.title}" puesto al día hasta hoy.`, 'success');
   };
 
   const getRecurrenceLabel = (reminder: ExpenseReminder) => {
@@ -61,6 +73,7 @@ export function ReminderBannerCard({
       {dueReminders.map((reminder) => {
         const { text: statusText, isOverdue } = getDaysDiffLabel(reminder.nextDate);
         const recurrenceLabel = getRecurrenceLabel(reminder);
+        const pendingCount = countPendingOccurrences(reminder, todayStr);
 
         return (
           <div
@@ -83,7 +96,7 @@ export function ReminderBannerCard({
                 >
                   <BellRing className="w-4 h-4 animate-bounce" />
                 </div>
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                   <span
                     className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                       isOverdue
@@ -101,6 +114,12 @@ export function ReminderBannerCard({
                     <Clock className="w-3 h-3 inline" />
                     {statusText}
                   </span>
+                  {pendingCount > 1 && (
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-600 text-white shadow-2xs flex items-center gap-1">
+                      <Layers className="w-2.5 h-2.5" />
+                      <span>{pendingCount} en cola</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -122,12 +141,11 @@ export function ReminderBannerCard({
                 <h4 className="text-sm sm:text-base font-black text-slate-800 truncate">
                   {reminder.title}
                 </h4>
-                {recurrenceLabel && (
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    🔄 {recurrenceLabel}
-                    {reminder.subcategory ? ` • ${reminder.subcategory}` : ''}
-                  </p>
-                )}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 font-medium">
+                  {recurrenceLabel && <span>🔄 {recurrenceLabel}</span>}
+                  <span>• Ciclo: {formatDayMonth(reminder.nextDate)}</span>
+                  {reminder.subcategory && <span>• {reminder.subcategory}</span>}
+                </div>
               </div>
               <div className="text-right shrink-0">
                 <span className="text-base sm:text-lg font-black text-slate-900">
@@ -140,11 +158,11 @@ export function ReminderBannerCard({
             <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-200/60">
               <button
                 type="button"
-                onClick={() => handleIgnore(reminder)}
+                onClick={() => handleIgnore(reminder, pendingCount)}
                 className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 shadow-2xs transition-all cursor-pointer active:scale-95"
               >
                 <X className="w-3.5 h-3.5 text-slate-400" />
-                <span>Ignorar</span>
+                <span>{pendingCount > 1 ? 'Ignorar este' : 'Ignorar'}</span>
               </button>
 
               <button
@@ -153,9 +171,27 @@ export function ReminderBannerCard({
                 className="flex-1.5 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-600/20 transition-all cursor-pointer active:scale-95"
               >
                 <Check className="w-3.5 h-3.5" />
-                <span>Incorporar</span>
+                <span>{pendingCount > 1 ? 'Incorporar este' : 'Incorporar'}</span>
               </button>
             </div>
+
+            {/* Aviso de cola si hay varias repeticiones acumuladas */}
+            {pendingCount > 1 && (
+              <div className="flex items-center justify-between mt-2 pt-1.5 text-[11px] text-amber-800/90 font-medium border-t border-amber-200/40">
+                <span className="truncate">
+                  Procesando repetición pendiente (quedan {pendingCount - 1} más)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleFastForward(reminder)}
+                  className="text-amber-900 hover:text-amber-950 font-bold underline cursor-pointer shrink-0 flex items-center gap-1 ml-2"
+                  title="Omitir ciclos pasados y avanzar hasta hoy"
+                >
+                  <FastForward className="w-3 h-3" />
+                  <span>Poner al día</span>
+                </button>
+              </div>
+            )}
           </div>
         );
       })}

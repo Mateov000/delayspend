@@ -161,6 +161,7 @@ export default function App() {
       subcategory: reminder.subcategory,
       nature: reminder.nature,
       type: 'real',
+      date: reminder.nextDate,
     });
   };
 

@@ -529,13 +529,14 @@ En el **modo unificado para padres**, todos los movimientos cargados justifican 
 ### ¿Por qué mi gasto de verdulería para la casa no subió mi promedio diario corriente?
 Porque le asignaste la naturaleza **"Para la casa" (`house`)**. El sistema aísla inteligentemente ese monto de tu ritmo de consumo personal para no penalizar tus métricas de disciplina individual, pero sí lo descuenta de tu saldo remanente y lo incluye en la rendición de cuentas.
 
-### ¿Cómo funcionan los recordatorios de gastos y pedidos periódicos?
+### ¿Cómo funcionan los recordatorios de gastos y qué pasa si se me acumulan repeticiones?
 Si comprás cosas por adelantado (por ejemplo, cajas de pastillas o medicamentos) pero querés pedirle a tu mamá el dinero cada $X$ días simulando compras regulares, podés configurar un **Recordatorio de Gasto**:
 - **Fecha y periodicidad:** Elegí cuándo empieza y cada cuántos días se repite (ej: cada 10 días, cada semana o sin límite).
 - **Condición de fin:** Podés dejarlo sin fin, ponerle una fecha de vencimiento final o que termine luego de cierta cantidad de veces.
-- **Aviso en pantalla:** Durante el día del recordatorio (y todos los días posteriores si se te pasó), vas a ver una tarjeta ámbar destacada en el Dashboard y una campana con insignia en la cabecera.
-- **Botón "Ignorar":** Pospone el recordatorio hasta el próximo ciclo programado sin registrar ningún gasto.
-- **Botón "Incorporar":** Abre automáticamente tu formulario habitual de carga de gastos con el monto y el nombre precargados. Al confirmar la carga, el gasto se suma a tu historial y el recordatorio avanza automáticamente a su siguiente ciclo. Si cerrás la ventana sin guardar, el aviso continúa mostrándose para no perderlo.
+- **Cola estricta paso a paso (Opción C):** Si pasaron varios ciclos sin que uses la app (por ejemplo, pasaron 20 días en un recordatorio de cada 10 días), el sistema detecta que hay **2 repeticiones acumuladas en cola**. La tarjeta te mostrará: `📦 2 en cola · Ciclo del [Fecha 1]`.
+- **Botón "Incorporar":** Abre automáticamente tu formulario habitual de carga de gastos con el monto, nombre y la fecha de ese ciclo ya precargados. Al confirmar la carga, registrás ese gasto y la tarjeta inmediatamente te muestra la siguiente repetición en cola (`Ciclo del [Fecha 2]`), permitiéndote incorporar cada pedido atrasado de forma ordenada.
+- **Botón "Ignorar":** Pospone esa repetición puntual y avanza al siguiente ciclo pendiente en cola.
+- **Botón "Poner al día":** Si no querés procesar el pasado y preferís saltear todas las repeticiones acumuladas de una vez, podés tocar *"Poner al día"* para reprogramar el recordatorio directamente a partir de hoy.
 - **Aislamiento total:** Ningún recordatorio altera tus balances, ahorros ni métricas hasta que vos mismo lo incorpores como gasto.
 
 ---

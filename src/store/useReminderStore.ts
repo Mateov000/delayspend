@@ -15,11 +15,44 @@ export interface ReminderState {
   toggleActive: (id: string) => void;
   markIgnored: (id: string) => void;
   markIncorporated: (id: string) => void;
+  fastForwardReminder: (id: string) => void;
   getDueReminders: (referenceDate?: string) => ExpenseReminder[];
 }
 
 const STORAGE_KEY = 'delayspend_reminders_v1';
 
+function addDaysToDateStr(dateStr: string, days: number): string {
+  const parts = dateStr.split('-');
+  const y = parseInt(parts[0]!, 10);
+  const m = parseInt(parts[1]!, 10) - 1;
+  const d = parseInt(parts[2]!, 10);
+  const date = new Date(y, m, d);
+  date.setDate(date.getDate() + days);
+  const nextY = date.getFullYear();
+  const nextM = String(date.getMonth() + 1).padStart(2, '0');
+  const nextD = String(date.getDate()).padStart(2, '0');
+  return `${nextY}-${nextM}-${nextD}`;
+}
+
+function addMonthsToDateStr(dateStr: string, months: number): string {
+  const parts = dateStr.split('-');
+  const y = parseInt(parts[0]!, 10);
+  const m = parseInt(parts[1]!, 10) - 1;
+  const d = parseInt(parts[2]!, 10);
+  const date = new Date(y, m, d);
+  date.setMonth(date.getMonth() + months);
+  const nextY = date.getFullYear();
+  const nextM = String(date.getMonth() + 1).padStart(2, '0');
+  const nextD = String(date.getDate()).padStart(2, '0');
+  return `${nextY}-${nextM}-${nextD}`;
+}
+
+/**
+ * Calcula la siguiente fecha del recordatorio siguiendo una cola estricta paso a paso (Opción C).
+ * Avanza estrictamente desde currentDateStr (la fecha programada del ciclo actual),
+ * de modo que si se acumulan varios ciclos, el usuario pueda procesar cada repetición
+ * en orden secuencial sin que se salteen ciclos pasados.
+ */
 export function calculateNextReminderDate(
   currentDateStr: string,
   recurrenceType: ReminderRecurrenceType,
@@ -29,21 +62,70 @@ export function calculateNextReminderDate(
     return null;
   }
 
-  const todayStr = new Date().toISOString().split('T')[0]!;
-  // Si se atiende tarde, el siguiente ciclo se computa a partir de hoy para no encimar avisos
-  const baseStr = currentDateStr > todayStr ? currentDateStr : todayStr;
-  const d = new Date(`${baseStr}T00:00:00`);
-
   if (recurrenceType === 'custom_days') {
     const days = Math.max(1, intervalDays || 1);
-    d.setDate(d.getDate() + days);
-  } else if (recurrenceType === 'weekly') {
-    d.setDate(d.getDate() + 7);
-  } else if (recurrenceType === 'monthly') {
-    d.setMonth(d.getMonth() + 1);
+    return addDaysToDateStr(currentDateStr, days);
   }
 
-  return d.toISOString().split('T')[0]!;
+  if (recurrenceType === 'weekly') {
+    return addDaysToDateStr(currentDateStr, 7);
+  }
+
+  if (recurrenceType === 'monthly') {
+    return addMonthsToDateStr(currentDateStr, 1);
+  }
+
+  return null;
+}
+
+/**
+ * Calcula cuántas repeticiones vencidas / acumuladas existen hasta la fecha de referencia (hoy por defecto).
+ * Si hay 1 sola fecha vencida, devuelve 1. Si pasaron 3 ciclos, devuelve 3.
+ */
+export function countPendingOccurrences(
+  reminder: ExpenseReminder,
+  referenceDateStr?: string
+): number {
+  const todayStr = referenceDateStr || new Date().toISOString().split('T')[0]!;
+  if (!reminder.isActive || reminder.nextDate > todayStr) {
+    return 0;
+  }
+  if (reminder.recurrenceType === 'none') {
+    return 1;
+  }
+
+  let count = 0;
+  let currentDate: string | null = reminder.nextDate;
+  let simOccurrences = reminder.occurrencesCount;
+
+  // Límite de seguridad contra loops infinitos
+  while (currentDate && currentDate <= todayStr && count < 365) {
+    count++;
+    simOccurrences++;
+
+    if (
+      reminder.endCondition === 'after_date' &&
+      reminder.endDate &&
+      currentDate >= reminder.endDate
+    ) {
+      break;
+    }
+    if (
+      reminder.endCondition === 'after_occurrences' &&
+      reminder.maxOccurrences &&
+      simOccurrences >= reminder.maxOccurrences
+    ) {
+      break;
+    }
+
+    currentDate = calculateNextReminderDate(
+      currentDate,
+      reminder.recurrenceType,
+      reminder.recurrenceIntervalDays
+    );
+  }
+
+  return Math.max(1, count);
 }
 
 function sanitizeReminder(raw: unknown): ExpenseReminder | null {
@@ -318,6 +400,62 @@ export const useReminderStore = create<ReminderState>()(
         }));
       },
 
+      fastForwardReminder: (id: string) => {
+        const now = new Date().toISOString();
+        const todayStr = now.split('T')[0]!;
+
+        set((state) => ({
+          reminders: state.reminders.map((r) => {
+            if (r.id !== id) return r;
+
+            let curr: string | null = r.nextDate;
+            let count = r.occurrencesCount;
+            let willDeactivate = false;
+
+            while (curr && curr <= todayStr) {
+              count++;
+              if (
+                r.endCondition === 'after_occurrences' &&
+                r.maxOccurrences &&
+                count >= r.maxOccurrences
+              ) {
+                willDeactivate = true;
+                break;
+              }
+              if (
+                r.endCondition === 'after_date' &&
+                r.endDate &&
+                curr >= r.endDate
+              ) {
+                willDeactivate = true;
+                break;
+              }
+
+              curr = calculateNextReminderDate(
+                curr,
+                r.recurrenceType,
+                r.recurrenceIntervalDays
+              );
+
+              if (!curr) {
+                willDeactivate = true;
+                break;
+              }
+            }
+
+            return {
+              ...r,
+              nextDate: curr || r.nextDate,
+              occurrencesCount: count,
+              isActive: willDeactivate ? false : r.isActive,
+              lastAction: 'ignored',
+              lastActionDate: todayStr,
+              updatedAt: now,
+            };
+          }),
+        }));
+      },
+
       getDueReminders: (referenceDate?: string) => {
         const todayStr = referenceDate || new Date().toISOString().split('T')[0]!;
         const { reminders } = get();
@@ -346,3 +484,4 @@ export const useReminderStore = create<ReminderState>()(
     }
   )
 );
+
