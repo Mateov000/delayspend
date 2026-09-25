@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BudgetSettings } from './BudgetSettings';
-import { ChevronDown, ChevronUp, Target } from 'lucide-react';
+import { ChevronDown, ChevronUp, Target, Bell, Plus } from 'lucide-react';
+import { useReminderStore } from '../../store/useReminderStore';
 
 interface SettingsSection {
   id: string;
@@ -10,8 +11,15 @@ interface SettingsSection {
   content: React.ReactNode;
 }
 
-export function SettingsView() {
+interface SettingsViewProps {
+  onOpenReminders?: () => void;
+  onOpenNewReminder?: () => void;
+}
+
+export function SettingsView({ onOpenReminders, onOpenNewReminder }: SettingsViewProps) {
   const [openSection, setOpenSection] = useState<string | null>('budgets');
+  const { reminders } = useReminderStore();
+  const activeRemindersCount = reminders.filter((r) => r.isActive).length;
 
   const sections: SettingsSection[] = [
     {
@@ -20,6 +28,37 @@ export function SettingsView() {
       subtitle: 'Límites de gasto por rubro',
       icon: <Target className="w-4 h-4" />,
       content: <BudgetSettings />,
+    },
+    {
+      id: 'reminders',
+      title: 'Recordatorios de gastos',
+      subtitle: `${activeRemindersCount} recordatorio(s) activo(s)`,
+      icon: <Bell className="w-4 h-4" />,
+      content: (
+        <div className="flex flex-col gap-3 py-1">
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Configurá avisos para pedir dinero periódicamente o planificar gastos recurrentes sin que interfieran con tus balances actuales.
+          </p>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onOpenReminders}
+              className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span>Ver y administrar ({reminders.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenNewReminder}
+              className="py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Nuevo</span>
+            </button>
+          </div>
+        </div>
+      ),
     },
   ];
 

@@ -15,6 +15,7 @@ interface AddExpenseSheetProps {
   defaultDate?: string;
   defaultPeriodId?: string | null;
   initialPreset?: Partial<ExpenseInput> | null;
+  onExpenseCreated?: (expense: Expense) => void;
 }
 
 export function AddExpenseSheet({
@@ -24,6 +25,7 @@ export function AddExpenseSheet({
   defaultDate,
   defaultPeriodId,
   initialPreset,
+  onExpenseCreated,
 }: AddExpenseSheetProps) {
   const { addExpense, updateExpense } = useExpenseStore();
   const { showToast } = useToastStore();
@@ -53,7 +55,8 @@ export function AddExpenseSheet({
         ...data,
         periodId: targetPeriod ? targetPeriod.id : null,
       };
-      addExpense(expenseData);
+      const created = addExpense(expenseData);
+      onExpenseCreated?.(created);
 
       // Si el gasto pertenece a un período distinto al que se estaba visualizando,
       // conmutamos la vista hacia el período donde realmente cayó el gasto

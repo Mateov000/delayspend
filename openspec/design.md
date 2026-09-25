@@ -1136,6 +1136,7 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 5. **No Diálogos Nativos:** Prohibido el uso de `window.alert`, `window.confirm` o `window.prompt`. Toda interacción utiliza `ConfirmDialog` o `Toaster`.
 
 ---
+*Fin de la Especificación de Diseño — DelaySpend v1.6.0*
 
 ## 13. 🔄 Resolución Dinámica y Visibilidad de Gastos entre Períodos
 
@@ -1154,3 +1155,24 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
 
 ---
 *Fin de la Especificación de Diseño — DelaySpend v1.7.0*
+
+## 14. ⏰ Recordatorios de Gastos y Pedidos Periódicos
+
+1. **Aislamiento Contable Absoluto:**
+   - Los recordatorios no son gastos: residen en un store desacoplado (`useReminderStore`) persistido en `delayspend_reminders_v1`.
+   - No modifican métricas financieras, saldos, proyecciones ni metas presupuestarias hasta que el usuario decida explícitamente incorporarlos al historial de gastos.
+
+2. **Reglas de Recurrencia y Vencimiento:**
+   - **Periodicidad flexible:** Sin repetición (`none`), intervalo personalizado en días (`custom_days` con `recurrenceIntervalDays`), semanal (`weekly`) o mensual (`monthly`).
+   - **Condiciones de fin:** Indefinido (`never`), por fecha tope (`after_date` con `endDate`) o por cantidad máxima de ocurrencias (`after_occurrences` con `maxOccurrences`).
+   - **Avance inteligente (`calculateNextReminderDate`):** Si un recordatorio se atiende con días de retraso, la próxima fecha se calcula a partir de hoy para no encimar avisos consecutivos.
+
+3. **Interacción y Ciclo de Vida:**
+   - **Banner persistente en Dashboard (`ReminderBannerCard`):** Se muestra durante el día del vencimiento y todos los días posteriores hasta que el usuario decida ignorar o incorporar el recordatorio.
+   - **Acción "Ignorar":** Avanza el recordatorio al siguiente ciclo (`nextDate`), incrementa el contador de ocurrencias y oculta el aviso hasta la próxima fecha programada.
+   - **Acción "Incorporar":** Abre la hoja nativa estándar `AddExpenseSheet` con el monto, nombre, categoría, subcategoría y naturaleza precargados (todos editables). Al guardar el gasto exitosamente, se marca el recordatorio como incorporado y avanza a la siguiente fecha. Si el usuario cancela o cierra la hoja sin confirmar, el recordatorio permanece pendiente y visible en el banner.
+   - **Campana de notificaciones en Cabecera (`Header`):** Muestra una insignia con el conteo de recordatorios vencidos/pendientes con animación de atención y acceso directo al gestor.
+   - **Centro de Gestión (`RemindersModal` y `ReminderFormModal`):** Accesible desde la campana o desde la sección de Ajustes, permite listar, pausar/activar, editar, eliminar y crear nuevos recordatorios.
+
+---
+*Fin de la Especificación de Diseño — DelaySpend v1.8.0*

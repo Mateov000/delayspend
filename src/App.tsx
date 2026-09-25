@@ -25,7 +25,11 @@ import { useToastStore } from './store/useToastStore';
 import { calculateMetrics } from './utils/metrics';
 import { calculatePeriodGoalProgress } from './utils/budgetMetrics';
 import { isExpenseMatchingFilter } from './utils/date';
-import { Expense, ExpenseInput, Period } from './store/types';
+import { ReminderBannerCard } from './components/reminders/ReminderBannerCard';
+import { RemindersModal } from './components/reminders/RemindersModal';
+import { ReminderFormModal } from './components/reminders/ReminderFormModal';
+import { useReminderStore } from './store/useReminderStore';
+import { Expense, ExpenseInput, Period, ExpenseReminder } from './store/types';
 import { STRINGS } from './constants/strings';
 
 export default function App() {
@@ -99,6 +103,12 @@ export default function App() {
   const [addPreset, setAddPreset] = useState<Partial<ExpenseInput> | null>(null);
   const [cutoffCandidateExpense, setCutoffCandidateExpense] = useState<Expense | null>(null);
 
+  // Estados para recordatorios de gastos
+  const [isRemindersOpen, setIsRemindersOpen] = useState(false);
+  const [isReminderFormOpen, setIsReminderFormOpen] = useState(false);
+  const [editingReminder, setEditingReminder] = useState<ExpenseReminder | null>(null);
+  const [pendingReminderId, setPendingReminderId] = useState<string | null>(null);
+
   // Estados para diálogos de confirmación accesibles (sin window.confirm)
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isConfirmTransferOpen, setIsConfirmTransferOpen] = useState(false);
@@ -132,6 +142,36 @@ export default function App() {
     setIsAddSheetOpen(false);
     setEditingExpense(null);
     setAddPreset(null);
+    setPendingReminderId(null);
+  };
+
+  const handleExpenseCreated = (_expense: Expense) => {
+    if (pendingReminderId) {
+      useReminderStore.getState().markIncorporated(pendingReminderId);
+      setPendingReminderId(null);
+    }
+  };
+
+  const handleIncorporateReminder = (reminder: ExpenseReminder) => {
+    setPendingReminderId(reminder.id);
+    handleOpenAdd({
+      description: reminder.title,
+      amount: reminder.amount,
+      categoryId: reminder.categoryId || 'health',
+      subcategory: reminder.subcategory,
+      nature: reminder.nature,
+      type: 'real',
+    });
+  };
+
+  const handleOpenNewReminder = () => {
+    setEditingReminder(null);
+    setIsReminderFormOpen(true);
+  };
+
+  const handleEditReminder = (reminder: ExpenseReminder) => {
+    setEditingReminder(reminder);
+    setIsReminderFormOpen(true);
   };
 
   // Manejo de eliminación de gasto con ConfirmDialog
@@ -205,12 +245,19 @@ export default function App() {
       <Header
         onOpenExport={() => setIsExportOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenReminders={() => setIsRemindersOpen(true)}
       />
 
       <main className="flex-1 flex flex-col">
         {/* ===================== PESTAÑA: INICIO ===================== */}
         {activeTab === 'home' && (
           <div className="px-4 py-4 flex flex-col">
+            {/* Banner de Recordatorios de Gastos pendientes/vencidos */}
+            <ReminderBannerCard
+              onIncorporate={handleIncorporateReminder}
+              onOpenManage={() => setIsRemindersOpen(true)}
+            />
+
             {/* Selector de Períodos */}
             <PeriodFilter
               onOpenNewPeriod={() => {
@@ -269,7 +316,10 @@ export default function App() {
 
         {/* ===================== PESTAÑA: AJUSTES ===================== */}
         {activeTab === 'settings' && (
-          <SettingsView />
+          <SettingsView
+            onOpenReminders={() => setIsRemindersOpen(true)}
+            onOpenNewReminder={handleOpenNewReminder}
+          />
         )}
       </main>
 
@@ -287,6 +337,7 @@ export default function App() {
         defaultDate={defaultExpenseDate}
         defaultPeriodId={activePeriod?.id ?? null}
         initialPreset={addPreset}
+        onExpenseCreated={handleExpenseCreated}
       />
 
       {/* Panel de Rendición y Exportación para WhatsApp y CSV */}
@@ -365,6 +416,25 @@ export default function App() {
         isDestructive
         onConfirm={handleConfirmDeletePeriod}
         onCancel={() => setDeletingPeriodId(null)}
+      />
+
+      {/* Modal de Lista y Gestión de Recordatorios */}
+      <RemindersModal
+        isOpen={isRemindersOpen}
+        onClose={() => setIsRemindersOpen(false)}
+        onOpenNew={handleOpenNewReminder}
+        onEdit={handleEditReminder}
+        onIncorporate={handleIncorporateReminder}
+      />
+
+      {/* Modal para Crear/Editar Recordatorio */}
+      <ReminderFormModal
+        isOpen={isReminderFormOpen}
+        onClose={() => {
+          setIsReminderFormOpen(false);
+          setEditingReminder(null);
+        }}
+        editingReminder={editingReminder}
       />
 
       {/* Contenedor de notificaciones Toast */}

@@ -1,19 +1,21 @@
-import { PiggyBank, Share2, Cloud, Check, RefreshCw, WifiOff } from 'lucide-react';
+import { PiggyBank, Share2, Cloud, Check, RefreshCw, WifiOff, Bell } from 'lucide-react';
 import { STRINGS } from '../../constants/strings';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useSyncStore } from '../../store/useSyncStore';
-
+import { useReminderStore } from '../../store/useReminderStore';
 import { useToastStore } from '../../store/useToastStore';
 
 interface HeaderProps {
   onOpenExport?: () => void;
   onOpenAuth?: () => void;
+  onOpenReminders?: () => void;
 }
 
-export function Header({ onOpenExport, onOpenAuth }: HeaderProps) {
+export function Header({ onOpenExport, onOpenAuth, onOpenReminders }: HeaderProps) {
   const { user } = useAuthStore();
   const { status, lastError, syncAllWithCloud } = useSyncStore();
   const { showToast } = useToastStore();
+  const dueCount = useReminderStore((state) => state.getDueReminders().length);
 
   const handleSyncRetry = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -98,7 +100,24 @@ export function Header({ onOpenExport, onOpenAuth }: HeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {onOpenReminders && (
+          <button
+            type="button"
+            onClick={onOpenReminders}
+            className="relative flex items-center justify-center w-8 h-8 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer border border-slate-200/80"
+            title="Recordatorios de gastos"
+            aria-label="Recordatorios de gastos"
+          >
+            <Bell className="w-4 h-4 text-slate-600" />
+            {dueCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-amber-500 text-white text-[9px] font-black border-2 border-white animate-pulse">
+                {dueCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {renderSyncBadge()}
 
         {onOpenExport && (

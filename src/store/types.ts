@@ -106,3 +106,43 @@ export interface ExpenseInput {
   subcategory?: string;
   isFictitious?: boolean;
 }
+
+export type ReminderRecurrenceType = 'none' | 'custom_days' | 'weekly' | 'monthly';
+export type ReminderEndCondition = 'never' | 'after_date' | 'after_occurrences';
+
+export interface ExpenseReminder {
+  id: string;
+  title: string;
+  amount: number;
+  categoryId?: CategoryId;
+  subcategory?: string;
+  nature?: ExpenseNature;
+  startDate: string; // YYYY-MM-DD
+  nextDate: string; // YYYY-MM-DD
+  recurrenceType: ReminderRecurrenceType;
+  recurrenceIntervalDays?: number;
+  endCondition: ReminderEndCondition;
+  endDate?: string | null;
+  maxOccurrences?: number | null;
+  occurrencesCount: number;
+  isActive: boolean;
+  lastAction?: 'incorporated' | 'ignored' | null;
+  lastActionDate?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReminderInput {
+  title: string;
+  amount: number;
+  categoryId?: CategoryId;
+  subcategory?: string;
+  nature?: ExpenseNature;
+  startDate: string;
+  recurrenceType: ReminderRecurrenceType;
+  recurrenceIntervalDays?: number;
+  endCondition: ReminderEndCondition;
+  endDate?: string | null;
+  maxOccurrences?: number | null;
+  isActive?: boolean;
+}
