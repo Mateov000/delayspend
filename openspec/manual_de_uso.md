@@ -539,5 +539,14 @@ Si comprás cosas por adelantado (por ejemplo, cajas de pastillas o medicamentos
 - **Botón "Poner al día":** Si no querés procesar el pasado y preferís saltear todas las repeticiones acumuladas de una vez, podés tocar *"Poner al día"* para reprogramar el recordatorio directamente a partir de hoy.
 - **Aislamiento total:** Ningún recordatorio altera tus balances, ahorros ni métricas hasta que vos mismo lo incorpores como gasto.
 
+### ¿Cómo adelanto uno o varios pagos agendados a futuro?
+Si hoy es día 27 y tenés un pago agendado para el 29, podés anticiparlo tocando el botón **"Adelantar"** (desde la lista de recordatorios o el cartel de avisos):
+- **Adelantar 1 pago:** Abre la carga de gastos por el monto unitario con fecha de hoy. Al guardar el gasto, el próximo recordatorio se reprograma para el ciclo siguiente (por ejemplo, el 29 del mes próximo si es mensual).
+- **Adelantar $Y$ pagos en lote:** Podés elegir cuántos pagos querés anticipar (ej: los próximos 3 pagos). Se abrirá el formulario multiplicando el monto por $Y$ y añadiendo al título `"(próximos Y)"`. Al confirmar, el recordatorio salta $Y$ ciclos hacia adelante.
+- **Control de pagos restantes:**
+  - El sistema verifica que queden al menos $Y$ pagos disponibles.
+  - Si intentás adelantar más de los que quedan, la app te notifica y bloquea la operación para evitar errores.
+  - Si adelantás exactamente los que quedaban, el recordatorio concluye sus repeticiones y pasa automáticamente al historial.
+
 ---
-*Fin del Manual de Uso — DelaySpend v1.8.0*
+*Fin del Manual de Uso — DelaySpend v1.9.0*

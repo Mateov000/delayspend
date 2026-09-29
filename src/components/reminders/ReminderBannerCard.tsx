@@ -1,17 +1,30 @@
-import { BellRing, Check, Clock, ChevronRight, X, FastForward, Layers } from 'lucide-react';
+import {
+  BellRing,
+  Check,
+  Clock,
+  ChevronRight,
+  X,
+  FastForward,
+  Layers,
+} from 'lucide-react';
 import { ExpenseReminder } from '../../store/types';
-import { useReminderStore, countPendingOccurrences } from '../../store/useReminderStore';
+import {
+  useReminderStore,
+  countPendingOccurrences,
+} from '../../store/useReminderStore';
 import { formatCurrency, formatDayMonth } from '../../utils/format';
 import { useToastStore } from '../../store/useToastStore';
 
 interface ReminderBannerCardProps {
   onIncorporate: (reminder: ExpenseReminder) => void;
   onOpenManage: () => void;
+  onOpenAdvance?: (reminder: ExpenseReminder) => void;
 }
 
 export function ReminderBannerCard({
   onIncorporate,
   onOpenManage,
+  onOpenAdvance,
 }: ReminderBannerCardProps) {
   const { getDueReminders, markIgnored, fastForwardReminder } = useReminderStore();
   const { showToast } = useToastStore();
@@ -154,7 +167,7 @@ export function ReminderBannerCard({
               </div>
             </div>
 
-            {/* Botones de acción solicitados: Ignorar e Incorporar */}
+            {/* Botones de acción solicitados: Ignorar, Adelantar e Incorporar */}
             <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-200/60">
               <button
                 type="button"
@@ -164,6 +177,18 @@ export function ReminderBannerCard({
                 <X className="w-3.5 h-3.5 text-slate-400" />
                 <span>{pendingCount > 1 ? 'Ignorar este' : 'Ignorar'}</span>
               </button>
+
+              {onOpenAdvance && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAdvance(reminder)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 shadow-2xs transition-all cursor-pointer active:scale-95"
+                  title="Adelantar uno o varios pagos de este recordatorio"
+                >
+                  <FastForward className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Adelantar...</span>
+                </button>
+              )}
 
               <button
                 type="button"

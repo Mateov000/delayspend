@@ -1169,11 +1169,19 @@ En línea con la psicología conductual de la app: si el usuario decide comprar 
    - **Conteo reactivo de repeticiones en cola (`countPendingOccurrences`):** Calcula dinámicamente cuántos períodos vencidos se hallan en espera y los expone en la interfaz (`X en cola`), junto con la opción de *"Poner al día"* (`fastForwardReminder`) si se desea saltear repeticiones pasadas en lote.
 
 3. **Interacción y Ciclo de Vida:**
-   - **Banner persistente en Dashboard (`ReminderBannerCard`):** Se muestra durante el día del vencimiento y todos los días posteriores mientras existan ciclos pendientes. Si hay repeticiones acumuladas, destaca la insignia de cola y el ciclo correspondiente.
+   - **Banner persistente en Dashboard (`ReminderBannerCard`):** Se muestra durante el día del vencimiento y todos los días posteriores mientras existan ciclos pendientes. Si hay repeticiones acumuladas, destaca la insignia de cola y el ciclo correspondiente. Permite ignorar, incorporar o adelantar pagos.
    - **Acción "Ignorar":** Avanza el recordatorio al siguiente ciclo en cola (`nextDate`), incrementa el contador de ocurrencias y muestra la siguiente repetición pendiente si la hubiera.
    - **Acción "Incorporar":** Abre la hoja nativa estándar `AddExpenseSheet` con el monto, nombre, categoría, subcategoría, naturaleza y la **fecha del ciclo correspondiente precargada** (todos editables). Al guardar el gasto exitosamente, se marca el ciclo como incorporado y avanza a la siguiente repetición en cola. Si el usuario cancela o cierra la hoja sin confirmar, el recordatorio permanece intacto en cola.
    - **Campana de notificaciones en Cabecera (`Header`):** Muestra una insignia con el conteo de recordatorios vencidos/pendientes con animación de atención y acceso directo al gestor.
    - **Centro de Gestión (`RemindersModal` y `ReminderFormModal`):** Accesible desde la campana o desde la sección de Ajustes, permite listar, pausar/activar, editar, eliminar y crear nuevos recordatorios.
 
+4. **Adelanto de Pagos Agendados (`advanceReminder` y `AdvanceReminderModal`):**
+   - **Adelanto unitario (1 pago):** Permite anticipar un pago agendado a futuro (ej. adelantar hoy día 27 un pago del día 29). Abre la hoja de gastos con el monto unitario y fecha de hoy; tras confirmarse, la próxima fecha agendada avanza al siguiente ciclo (ej. 29 del mes próximo si es mensual).
+   - **Adelanto múltiple ($Y$ pagos):** Permite adelantar un lote de los próximos $Y$ pagos. Abre el gasto precargando el monto multiplicado por $Y$, agregando al título `"(próximos Y)"` y reprogramando la fecha futura $Y$ ciclos hacia adelante.
+   - **Reglas de verificación y finalización:**
+     - Si $Y > \text{restantes}$: El sistema verifica previamente la cantidad restante y notifica al usuario con un error impidiendo el exceso.
+     - Si $Y = \text{restantes}$: El recordatorio concluye todas sus repeticiones (`willDeactivate: true`, `isActive: false`) y pasa al historial de recordatorios.
+     - Si $Y < \text{restantes}$ (o sin límite): El pago siguiente a $Y$ pasa a ser el próximo pago agendado y el recordatorio continúa activo.
+
 ---
-*Fin de la Especificación de Diseño — DelaySpend v1.8.0*
+*Fin de la Especificación de Diseño — DelaySpend v1.9.0*

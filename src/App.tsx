@@ -28,6 +28,7 @@ import { isExpenseMatchingFilter } from './utils/date';
 import { ReminderBannerCard } from './components/reminders/ReminderBannerCard';
 import { RemindersModal } from './components/reminders/RemindersModal';
 import { ReminderFormModal } from './components/reminders/ReminderFormModal';
+import { AdvanceReminderModal } from './components/reminders/AdvanceReminderModal';
 import { useReminderStore } from './store/useReminderStore';
 import { Expense, ExpenseInput, Period, ExpenseReminder } from './store/types';
 import { STRINGS } from './constants/strings';
@@ -107,7 +108,11 @@ export default function App() {
   const [isRemindersOpen, setIsRemindersOpen] = useState(false);
   const [isReminderFormOpen, setIsReminderFormOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<ExpenseReminder | null>(null);
-  const [pendingReminderId, setPendingReminderId] = useState<string | null>(null);
+  const [advancingReminder, setAdvancingReminder] = useState<ExpenseReminder | null>(null);
+  const [pendingAdvanceInfo, setPendingAdvanceInfo] = useState<{
+    reminderId: string;
+    advanceCount: number;
+  } | null>(null);
 
   // Estados para diálogos de confirmación accesibles (sin window.confirm)
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -142,18 +147,32 @@ export default function App() {
     setIsAddSheetOpen(false);
     setEditingExpense(null);
     setAddPreset(null);
-    setPendingReminderId(null);
+    setPendingAdvanceInfo(null);
   };
 
   const handleExpenseCreated = (_expense: Expense) => {
-    if (pendingReminderId) {
-      useReminderStore.getState().markIncorporated(pendingReminderId);
-      setPendingReminderId(null);
+    if (pendingAdvanceInfo) {
+      const res = useReminderStore.getState().advanceReminder(
+        pendingAdvanceInfo.reminderId,
+        pendingAdvanceInfo.advanceCount
+      );
+      if (res.success) {
+        if (res.willDeactivate) {
+          showToast('El recordatorio completó todas sus repeticiones y pasó al historial.', 'info');
+        } else if (pendingAdvanceInfo.advanceCount > 1) {
+          showToast(`Se adelantaron ${pendingAdvanceInfo.advanceCount} pagos del recordatorio.`, 'success');
+        } else {
+          showToast('Pago adelantado e incorporado exitosamente.', 'success');
+        }
+      } else if (res.error) {
+        showToast(res.error, 'error');
+      }
+      setPendingAdvanceInfo(null);
     }
   };
 
   const handleIncorporateReminder = (reminder: ExpenseReminder) => {
-    setPendingReminderId(reminder.id);
+    setPendingAdvanceInfo({ reminderId: reminder.id, advanceCount: 1 });
     handleOpenAdd({
       description: reminder.title,
       amount: reminder.amount,
@@ -162,6 +181,29 @@ export default function App() {
       nature: reminder.nature,
       type: 'real',
       date: reminder.nextDate,
+    });
+  };
+
+  const handleOpenAdvanceReminder = (reminder: ExpenseReminder) => {
+    setAdvancingReminder(reminder);
+  };
+
+  const handleConfirmAdvance = (
+    reminder: ExpenseReminder,
+    count: number,
+    totalAmount: number,
+    description: string
+  ) => {
+    setPendingAdvanceInfo({ reminderId: reminder.id, advanceCount: count });
+    const todayStr = new Date().toISOString().split('T')[0]!;
+    handleOpenAdd({
+      description,
+      amount: totalAmount,
+      categoryId: reminder.categoryId || 'health',
+      subcategory: reminder.subcategory,
+      nature: reminder.nature,
+      type: 'real',
+      date: todayStr,
     });
   };
 
@@ -257,6 +299,7 @@ export default function App() {
             <ReminderBannerCard
               onIncorporate={handleIncorporateReminder}
               onOpenManage={() => setIsRemindersOpen(true)}
+              onOpenAdvance={handleOpenAdvanceReminder}
             />
 
             {/* Selector de Períodos */}
@@ -426,6 +469,7 @@ export default function App() {
         onOpenNew={handleOpenNewReminder}
         onEdit={handleEditReminder}
         onIncorporate={handleIncorporateReminder}
+        onOpenAdvance={handleOpenAdvanceReminder}
       />
 
       {/* Modal para Crear/Editar Recordatorio */}
@@ -436,6 +480,14 @@ export default function App() {
           setEditingReminder(null);
         }}
         editingReminder={editingReminder}
+      />
+
+      {/* Modal para Adelantar Pago Agendado */}
+      <AdvanceReminderModal
+        isOpen={Boolean(advancingReminder)}
+        onClose={() => setAdvancingReminder(null)}
+        reminder={advancingReminder}
+        onConfirmAdvance={handleConfirmAdvance}
       />
 
       {/* Contenedor de notificaciones Toast */}

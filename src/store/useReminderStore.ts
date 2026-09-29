@@ -7,6 +7,14 @@ import {
 } from './types';
 import { generateId } from '../utils/id';
 
+export interface AdvanceResult {
+  success: boolean;
+  error?: string;
+  willDeactivate?: boolean;
+  newNextDate?: string | null;
+  advancedCount?: number;
+}
+
 export interface ReminderState {
   reminders: ExpenseReminder[];
   addReminder: (input: ReminderInput) => ExpenseReminder;
@@ -15,6 +23,7 @@ export interface ReminderState {
   toggleActive: (id: string) => void;
   markIgnored: (id: string) => void;
   markIncorporated: (id: string) => void;
+  advanceReminder: (id: string, count: number) => AdvanceResult;
   fastForwardReminder: (id: string) => void;
   getDueReminders: (referenceDate?: string) => ExpenseReminder[];
 }
@@ -76,6 +85,74 @@ export function calculateNextReminderDate(
   }
 
   return null;
+}
+
+/**
+ * Calcula cuántas repeticiones restantes le quedan a un recordatorio según su condición de fin.
+ * Devuelve null si no tiene límite ('never' con recurrencia).
+ */
+export function calculateRemainingOccurrences(
+  reminder: ExpenseReminder
+): number | null {
+  if (reminder.recurrenceType === 'none') {
+    return reminder.occurrencesCount >= 1 ? 0 : 1;
+  }
+
+  if (reminder.endCondition === 'after_occurrences') {
+    const max = reminder.maxOccurrences || 0;
+    return Math.max(0, max - reminder.occurrencesCount);
+  }
+
+  if (reminder.endCondition === 'after_date') {
+    if (!reminder.endDate) return null;
+    let count = 0;
+    let curr: string | null = reminder.nextDate;
+    while (curr && curr <= reminder.endDate && count < 1000) {
+      count++;
+      curr = calculateNextReminderDate(curr, reminder.recurrenceType, reminder.recurrenceIntervalDays);
+    }
+    return count;
+  }
+
+  return null;
+}
+
+/**
+ * Simula adelantar Y pagos en un recordatorio y calcula la próxima fecha agendada
+ * y si el recordatorio debe darse por finalizado.
+ */
+export function calculateAdvanceNextDate(
+  reminder: ExpenseReminder,
+  advanceCount: number
+): { newNextDate: string | null; willDeactivate: boolean } {
+  if (advanceCount <= 0) {
+    return { newNextDate: reminder.nextDate, willDeactivate: false };
+  }
+
+  const remaining = calculateRemainingOccurrences(reminder);
+  let willDeactivate = false;
+
+  if (remaining !== null && advanceCount >= remaining) {
+    willDeactivate = true;
+  }
+
+  let curr: string | null = reminder.nextDate;
+  for (let i = 0; i < advanceCount; i++) {
+    if (!curr) {
+      willDeactivate = true;
+      break;
+    }
+    curr = calculateNextReminderDate(curr, reminder.recurrenceType, reminder.recurrenceIntervalDays);
+    if (!curr) {
+      willDeactivate = true;
+      break;
+    }
+  }
+
+  return {
+    newNextDate: curr,
+    willDeactivate,
+  };
 }
 
 /**
@@ -355,42 +432,37 @@ export const useReminderStore = create<ReminderState>()(
         }));
       },
 
-      markIncorporated: (id: string) => {
+      advanceReminder: (id: string, count: number): AdvanceResult => {
         const now = new Date().toISOString();
         const todayStr = now.split('T')[0]!;
+        const reminder = get().reminders.find((r) => r.id === id);
+
+        if (!reminder) {
+          return { success: false, error: 'Recordatorio no encontrado.' };
+        }
+
+        if (count <= 0) {
+          return { success: false, error: 'La cantidad de pagos a adelantar debe ser al menos 1.' };
+        }
+
+        const remaining = calculateRemainingOccurrences(reminder);
+        if (remaining !== null && count > remaining) {
+          return {
+            success: false,
+            error: `Solo quedan ${remaining} pago(s) restante(s) en este recordatorio. No podés adelantar ${count}.`,
+          };
+        }
+
+        const { newNextDate, willDeactivate } = calculateAdvanceNextDate(reminder, count);
+        const updatedCount = reminder.occurrencesCount + count;
 
         set((state) => ({
           reminders: state.reminders.map((r) => {
             if (r.id !== id) return r;
-
-            const nextCalculated = calculateNextReminderDate(
-              r.nextDate,
-              r.recurrenceType,
-              r.recurrenceIntervalDays
-            );
-            const newCount = r.occurrencesCount + 1;
-
-            let willDeactivate = false;
-            if (!nextCalculated) {
-              willDeactivate = true;
-            } else if (
-              r.endCondition === 'after_occurrences' &&
-              r.maxOccurrences &&
-              newCount >= r.maxOccurrences
-            ) {
-              willDeactivate = true;
-            } else if (
-              r.endCondition === 'after_date' &&
-              r.endDate &&
-              nextCalculated > r.endDate
-            ) {
-              willDeactivate = true;
-            }
-
             return {
               ...r,
-              occurrencesCount: newCount,
-              nextDate: nextCalculated || r.nextDate,
+              occurrencesCount: updatedCount,
+              nextDate: newNextDate || r.nextDate,
               isActive: willDeactivate ? false : r.isActive,
               lastAction: 'incorporated',
               lastActionDate: todayStr,
@@ -398,6 +470,17 @@ export const useReminderStore = create<ReminderState>()(
             };
           }),
         }));
+
+        return {
+          success: true,
+          willDeactivate,
+          newNextDate,
+          advancedCount: count,
+        };
+      },
+
+      markIncorporated: (id: string) => {
+        get().advanceReminder(id, 1);
       },
 
       fastForwardReminder: (id: string) => {

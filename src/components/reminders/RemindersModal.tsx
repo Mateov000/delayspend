@@ -13,6 +13,7 @@ import {
   Repeat,
   Calendar,
   PlusCircle,
+  FastForward,
 } from 'lucide-react';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToastStore } from '../../store/useToastStore';
@@ -23,6 +24,7 @@ interface RemindersModalProps {
   onOpenNew: () => void;
   onEdit: (reminder: ExpenseReminder) => void;
   onIncorporate: (reminder: ExpenseReminder) => void;
+  onOpenAdvance: (reminder: ExpenseReminder) => void;
 }
 
 export function RemindersModal({
@@ -31,6 +33,7 @@ export function RemindersModal({
   onOpenNew,
   onEdit,
   onIncorporate,
+  onOpenAdvance,
 }: RemindersModalProps) {
   const { reminders, deleteReminder, toggleActive } = useReminderStore();
   const { showToast } = useToastStore();
@@ -270,17 +273,35 @@ export function RemindersModal({
                       </div>
 
                       {reminder.isActive && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onClose();
-                            onIncorporate(reminder);
-                          }}
-                          className="flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer"
-                        >
-                          <PlusCircle className="w-3.5 h-3.5" />
-                          <span>Incorporar</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onClose();
+                              onOpenAdvance(reminder);
+                            }}
+                            className="flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/60 transition-colors cursor-pointer"
+                            title="Adelantar uno o varios pagos agendados"
+                          >
+                            <FastForward className="w-3 h-3 text-indigo-600" />
+                            <span>Adelantar</span>
+                          </button>
+
+                          {isDue && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onClose();
+                                onIncorporate(reminder);
+                              }}
+                              className="flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-2xs transition-colors cursor-pointer"
+                              title="Incorporar este ciclo"
+                            >
+                              <PlusCircle className="w-3.5 h-3.5" />
+                              <span>Incorporar</span>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
