@@ -28,6 +28,13 @@ export interface ReminderState {
   getDueReminders: (referenceDate?: string) => ExpenseReminder[];
 }
 
+type ReminderSyncListener = (action: 'push' | 'delete', item: ExpenseReminder | string) => void;
+let reminderSyncListener: ReminderSyncListener | null = null;
+
+export function registerReminderSyncListener(listener: ReminderSyncListener) {
+  reminderSyncListener = listener;
+}
+
 const STORAGE_KEY = 'delayspend_reminders_v1';
 
 function addDaysToDateStr(dateStr: string, days: number): string {
@@ -311,6 +318,10 @@ export const useReminderStore = create<ReminderState>()(
           reminders: [newReminder, ...state.reminders],
         }));
 
+        if (reminderSyncListener) {
+          reminderSyncListener('push', newReminder);
+        }
+
         return newReminder;
       },
 
@@ -370,12 +381,20 @@ export const useReminderStore = create<ReminderState>()(
             };
           }),
         }));
+
+        const updated = get().reminders.find((r) => r.id === id);
+        if (updated && reminderSyncListener) {
+          reminderSyncListener('push', updated);
+        }
       },
 
       deleteReminder: (id: string) => {
         set((state) => ({
           reminders: state.reminders.filter((r) => r.id !== id),
         }));
+        if (reminderSyncListener) {
+          reminderSyncListener('delete', id);
+        }
       },
 
       toggleActive: (id: string) => {
@@ -385,6 +404,10 @@ export const useReminderStore = create<ReminderState>()(
             r.id === id ? { ...r, isActive: !r.isActive, updatedAt: now } : r
           ),
         }));
+        const updated = get().reminders.find((r) => r.id === id);
+        if (updated && reminderSyncListener) {
+          reminderSyncListener('push', updated);
+        }
       },
 
       markIgnored: (id: string) => {
@@ -430,6 +453,11 @@ export const useReminderStore = create<ReminderState>()(
             };
           }),
         }));
+
+        const updated = get().reminders.find((r) => r.id === id);
+        if (updated && reminderSyncListener) {
+          reminderSyncListener('push', updated);
+        }
       },
 
       advanceReminder: (id: string, count: number): AdvanceResult => {
@@ -470,6 +498,11 @@ export const useReminderStore = create<ReminderState>()(
             };
           }),
         }));
+
+        const updated = get().reminders.find((r) => r.id === id);
+        if (updated && reminderSyncListener) {
+          reminderSyncListener('push', updated);
+        }
 
         return {
           success: true,
@@ -537,6 +570,11 @@ export const useReminderStore = create<ReminderState>()(
             };
           }),
         }));
+
+        const updated = get().reminders.find((r) => r.id === id);
+        if (updated && reminderSyncListener) {
+          reminderSyncListener('push', updated);
+        }
       },
 
       getDueReminders: (referenceDate?: string) => {

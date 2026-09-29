@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { Expense, Period } from './types';
+import { Expense, Period, ExpenseReminder } from './types';
 import { useExpenseStore, registerSyncListener } from './useExpenseStore';
 import { usePeriodStore, registerPeriodSyncListener } from './usePeriodStore';
+import { useReminderStore, registerReminderSyncListener } from './useReminderStore';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'guest';
@@ -17,6 +18,8 @@ interface SyncState {
   deleteRemoteExpense: (id: string, userId: string) => Promise<void>;
   pushPeriod: (period: Period, userId: string) => Promise<void>;
   deleteRemotePeriod: (id: string, userId: string) => Promise<void>;
+  pushReminder: (reminder: ExpenseReminder, userId: string) => Promise<void>;
+  deleteRemoteReminder: (id: string, userId: string) => Promise<void>;
   syncAllWithCloud: (userId: string) => Promise<void>;
 }
 
@@ -53,6 +56,30 @@ interface DbPeriodRow {
   end_date: string | null;
   initial_income: number;
   cutoff_expense_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+interface DbReminderRow {
+  id: string;
+  user_id: string;
+  title: string;
+  amount: number;
+  category_id?: string | null;
+  subcategory?: string | null;
+  nature?: string | null;
+  start_date: string;
+  next_date: string;
+  recurrence_type: string;
+  recurrence_interval_days?: number | null;
+  end_condition: string;
+  end_date?: string | null;
+  max_occurrences?: number | null;
+  occurrences_count: number;
+  is_active: boolean;
+  last_action?: string | null;
+  last_action_date?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -108,6 +135,30 @@ function mapRowToPeriod(row: DbPeriodRow): Period {
   };
 }
 
+function mapRowToReminder(row: DbReminderRow): ExpenseReminder {
+  return {
+    id: row.id,
+    title: row.title,
+    amount: Number(row.amount) || 0,
+    categoryId: (row.category_id as ExpenseReminder['categoryId']) || undefined,
+    subcategory: row.subcategory || undefined,
+    nature: (row.nature as ExpenseReminder['nature']) || undefined,
+    startDate: row.start_date,
+    nextDate: row.next_date,
+    recurrenceType: (row.recurrence_type as ExpenseReminder['recurrenceType']) || 'none',
+    recurrenceIntervalDays: row.recurrence_interval_days ? Number(row.recurrence_interval_days) : undefined,
+    endCondition: (row.end_condition as ExpenseReminder['endCondition']) || 'never',
+    endDate: row.end_date ?? null,
+    maxOccurrences: row.max_occurrences ? Number(row.max_occurrences) : null,
+    occurrencesCount: Number(row.occurrences_count) || 0,
+    isActive: Boolean(row.is_active),
+    lastAction: (row.last_action as ExpenseReminder['lastAction']) || null,
+    lastActionDate: row.last_action_date ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapExpenseToRow(expense: Expense, userId: string): Omit<DbExpenseRow, 'deleted_at'> {
   return {
     id: expense.id,
@@ -132,6 +183,38 @@ function mapExpenseToRow(expense: Expense, userId: string): Omit<DbExpenseRow, '
     created_at: expense.createdAt,
     updated_at: expense.updatedAt,
   };
+}
+
+function mapReminderToRow(reminder: ExpenseReminder, userId: string): Omit<DbReminderRow, 'deleted_at'> {
+  return {
+    id: reminder.id,
+    user_id: userId,
+    title: reminder.title,
+    amount: reminder.amount,
+    category_id: reminder.categoryId ?? null,
+    subcategory: reminder.subcategory ?? null,
+    nature: reminder.nature ?? null,
+    start_date: reminder.startDate,
+    next_date: reminder.nextDate,
+    recurrence_type: reminder.recurrenceType,
+    recurrence_interval_days: reminder.recurrenceIntervalDays ?? null,
+    end_condition: reminder.endCondition,
+    end_date: reminder.endDate ?? null,
+    max_occurrences: reminder.maxOccurrences ?? null,
+    occurrences_count: reminder.occurrencesCount,
+    is_active: reminder.isActive,
+    last_action: reminder.lastAction ?? null,
+    last_action_date: reminder.lastActionDate ?? null,
+    created_at: reminder.createdAt,
+    updated_at: reminder.updatedAt,
+  };
+}
+
+function isMissingTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as { code?: string; message?: string; details?: string };
+  const msg = String(err.message || err.details || '').toLowerCase();
+  return err.code === '42P01' || msg.includes('does not exist') || msg.includes('relation "public.reminders"');
 }
 
 /**
@@ -288,6 +371,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       set({ status: 'guest' });
       registerSyncListener(() => {});
       registerPeriodSyncListener(() => {});
+      registerReminderSyncListener(() => {});
       return () => {};
     }
 
@@ -305,6 +389,14 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         get().pushPeriod(item as Period, userId);
       } else {
         get().deleteRemotePeriod(item as string, userId);
+      }
+    });
+
+    registerReminderSyncListener((action, item) => {
+      if (action === 'push') {
+        get().pushReminder(item as ExpenseReminder, userId);
+      } else {
+        get().deleteRemoteReminder(item as string, userId);
       }
     });
 
@@ -356,6 +448,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
     let expenseChannel: RealtimeChannel | null = null;
     let periodChannel: RealtimeChannel | null = null;
+    let reminderChannel: RealtimeChannel | null = null;
 
     try {
       // Canal de Gastos
@@ -433,6 +526,46 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           }
         )
         .subscribe();
+
+      // Canal de Recordatorios
+      reminderChannel = supabase
+        .channel(`user_reminders_${userId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'reminders', filter: `user_id=eq.${userId}` },
+          (payload) => {
+            const { reminders } = useReminderStore.getState();
+
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              const row = payload.new as DbReminderRow;
+              if (row.deleted_at) {
+                useReminderStore.getState().deleteReminder(row.id);
+              } else {
+                const incoming = mapRowToReminder(row);
+                const existingIndex = reminders.findIndex((r) => r.id === incoming.id);
+
+                if (existingIndex >= 0) {
+                  const current = reminders[existingIndex];
+                  if (current && new Date(incoming.updatedAt) > new Date(current.updatedAt)) {
+                    useReminderStore.setState({
+                      reminders: reminders.map((r) => (r.id === incoming.id ? incoming : r)),
+                    });
+                  }
+                } else {
+                  useReminderStore.setState({ reminders: [incoming, ...reminders] });
+                }
+              }
+            } else if (payload.eventType === 'DELETE') {
+              const oldRow = payload.old as { id?: string };
+              if (oldRow?.id) {
+                useReminderStore.getState().deleteReminder(oldRow.id);
+              }
+            }
+
+            set({ status: 'synced', lastSyncedAt: new Date().toISOString() });
+          }
+        )
+        .subscribe();
     } catch {
       set({ status: 'offline' });
     }
@@ -449,8 +582,10 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       window.removeEventListener('focus', handleVisibilityOrFocus);
       registerSyncListener(() => {});
       registerPeriodSyncListener(() => {});
+      registerReminderSyncListener(() => {});
       if (expenseChannel) supabase.removeChannel(expenseChannel);
       if (periodChannel) supabase.removeChannel(periodChannel);
+      if (reminderChannel) supabase.removeChannel(reminderChannel);
     };
   },
 
@@ -603,6 +738,66 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         );
         useExpenseStore.setState({ expenses: allMergedExpenses });
 
+        // 3. SINCRONIZACIÓN DE RECORDATORIOS
+        try {
+          const { data: remoteReminderRows, error: remError } = await withTimeout(
+            supabase
+              .from('reminders')
+              .select('*')
+              .eq('user_id', userId)
+              .is('deleted_at', null),
+            8000,
+            'descarga de recordatorios'
+          );
+
+          if (remError) {
+            if (isMissingTableError(remError)) {
+              console.warn('[Sync] Tabla "reminders" no existe aún en Supabase. Se mantendrán los recordatorios locales.');
+            } else {
+              console.error('Error fetching remote reminders:', remError);
+            }
+          } else if (remoteReminderRows) {
+            const remoteReminders = (remoteReminderRows as DbReminderRow[]).map(mapRowToReminder);
+            const localReminders = useReminderStore.getState().reminders;
+
+            const mergedRemindersMap = new Map<string, ExpenseReminder>();
+            for (const remote of remoteReminders) {
+              mergedRemindersMap.set(remote.id, remote);
+            }
+
+            const remindersToUpload: ExpenseReminder[] = [];
+            for (const local of localReminders) {
+              const remote = mergedRemindersMap.get(local.id);
+              if (!remote) {
+                remindersToUpload.push(local);
+                mergedRemindersMap.set(local.id, local);
+              } else if (new Date(local.updatedAt) > new Date(remote.updatedAt)) {
+                remindersToUpload.push(local);
+                mergedRemindersMap.set(local.id, local);
+              }
+            }
+
+            if (remindersToUpload.length > 0) {
+              const payload = remindersToUpload.map((r) => mapReminderToRow(r, userId));
+              const { error: upsertRemError } = await withTimeout(
+                supabase.from('reminders').upsert(payload),
+                8000,
+                'subida de recordatorios'
+              );
+              if (upsertRemError && !isMissingTableError(upsertRemError)) {
+                console.error('Error upserting reminders to Supabase:', upsertRemError);
+              }
+            }
+
+            const allMergedReminders = Array.from(mergedRemindersMap.values()).sort(
+              (a, b) => a.nextDate.localeCompare(b.nextDate) || b.createdAt.localeCompare(a.createdAt)
+            );
+            useReminderStore.setState({ reminders: allMergedReminders });
+          }
+        } catch (remErr) {
+          console.warn('[Sync] Excepción al sincronizar recordatorios con Supabase:', remErr);
+        }
+
         lastSyncTimestamp = Date.now();
         set({ status: 'synced', lastSyncedAt: new Date().toISOString(), lastError: null });
       } catch (err: unknown) {
@@ -710,6 +905,49 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     } catch (err: unknown) {
       console.error('Exception in deleteRemotePeriod:', err);
       set({ status: 'offline', lastError: err instanceof Error ? err.message : 'Error de conexión' });
+    }
+  },
+
+  pushReminder: async (reminder: ExpenseReminder, userId: string) => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const payload = mapReminderToRow(reminder, userId);
+      const { error } = await withTimeout(
+        supabase.from('reminders').upsert(payload),
+        6000,
+        'pushReminder'
+      );
+      if (error) {
+        if (!isMissingTableError(error)) {
+          console.error('Error in pushReminder:', error);
+          set({ status: 'offline', lastError: (error as { message?: string }).message || 'Error al guardar recordatorio' });
+        }
+        return;
+      }
+      set({ status: 'synced', lastSyncedAt: new Date().toISOString(), lastError: null });
+    } catch (err: unknown) {
+      console.warn('Exception in pushReminder:', err);
+    }
+  },
+
+  deleteRemoteReminder: async (id: string, userId: string) => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { error } = await withTimeout(
+        supabase
+          .from('reminders')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', id)
+          .eq('user_id', userId),
+        6000,
+        'deleteRemoteReminder'
+      );
+      if (error && !isMissingTableError(error)) {
+        console.error('Error in deleteRemoteReminder:', error);
+      }
+      set({ status: 'synced', lastSyncedAt: new Date().toISOString(), lastError: null });
+    } catch (err: unknown) {
+      console.warn('Exception in deleteRemoteReminder:', err);
     }
   },
 }));
